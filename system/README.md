@@ -71,7 +71,7 @@ Every fact carries the ID of the record it came from (`CUS-`, `KYC-`, `NOTE-`, `
 
 ## Same result every run
 
-The system is a pure function of the data folder: no model, no network, no clock, no randomness, and every loop runs in file order. Two runs on the same folder give byte-identical output, and the output is identical on Python 3.9 and 3.13.
+The system is a pure function of the data folder: no model, no network, no clock, no randomness, and every loop runs in file order. Two runs on the same folder give byte-identical output, and the output is identical on Python 3.9, 3.11, 3.12 and 3.13.
 
 ## When it cannot tell, it does not clear
 

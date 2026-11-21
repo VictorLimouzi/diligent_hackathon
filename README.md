@@ -48,14 +48,23 @@ make serve              # http://localhost:8000
 
 Put `ANTHROPIC_API_KEY=...` in `.env` for live LLM output. Without it every LLM feature answers from its cache or from a labelled offline stand-in.
 
+### A three-minute tour
+
+1. **Queue.** Open the review queue. Hits the engine could not settle are grouped by what blocks them ("No birth date to compare", "Name and birth date agree, countries differ") and ranked by the advisory model.
+2. **One case.** Open alert `A-0DF328` and its hit `H-ADF453`. The comparison table sets the customer's verified facts against the hit's, each with the record it came from; click a record ID to see the source. "What would settle it" shows that one fact (a tie to the hit's country) turns this review into a confirmation.
+3. **Investigate.** Start the investigator. The agent looks through the customer's own records with read-only tools, shows each step, and drafts the question to send the customer. It cannot change the decision.
+4. **Decide.** Record an analyst decision with a comment. It is stored in the audit history and marked as an override when it differs; the engine's decision is kept and shown beside it.
+5. **QA.** The QA page lists the hits where the second opinion disagrees with the engine, name clears that the name model scores as close, and unusual cases. This is how the date fault described in [`system/README.md`](system/README.md) was found.
+
 ### Tests
 
 ```sh
 make test                              # engine, server, models, agents
 python3 -m evals.run data/screening/dev    # robustness sweep
+.venv/bin/python -m evals.wording          # new wordings for every kind of text the engine reads
 ```
 
-`evals/` rewrites the data in ways that keep its meaning (date formats, country codes, name order, odd spaces, malformed rows) and reports any decision that becomes less safe. Its findings are in [`evals/FINDINGS.md`](evals/FINDINGS.md); the faults it found are fixed, and the one left on purpose is explained in `system/README.md`.
+`evals/` rewrites the data in ways that keep its meaning (date formats, country codes, name order, odd spaces, malformed rows) and reports any decision that becomes less safe. Its findings are in [`evals/FINDINGS.md`](evals/FINDINGS.md); the faults it found are fixed, and the one left on purpose is explained in `system/README.md`. `evals/wording.py` asks a model for new sentence templates (placeholders only, never a development record), fills them with invented values and counts what the engine's patterns read wrongly: none of 1,266 after the fixes, 14 left unread.
 
 ## Layout
 
