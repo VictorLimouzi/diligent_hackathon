@@ -1,0 +1,7 @@
+src/api/types.ts
+src/api/fixtures/
+package-lock.json
+node_modules/
+dist/
+.cache/
+test-results/

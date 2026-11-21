@@ -1,0 +1,26 @@
+out/
+data/dev_from_workbook/
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+.env
+node_modules/
+web/dist/
+.claude/
+# Development data is for event participants only: never commit it.
+data/
+contracts/fixtures/
+# harness outputs embed development records: local only
+evals/report*
+evals/reproductions*
+evals/diagnostics.json
+evals/*.log
+evals/runtime.json
+evals/replay-report.json
+# cut from development records: local only (make fixtures)
+web/src/api/fixtures/
+web/.cache/
+web/test-results/
+web/playwright-report/
+*.tsbuildinfo

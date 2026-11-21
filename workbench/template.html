@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Casebook · Screening workbench</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --page: light-dark(#eef1f6, #10141c);
+    --panel: light-dark(#fcfdff, #181e2a);
+    --raised: light-dark(#f2f5fa, #222b3a);
+    --ink: light-dark(#142139, #edf1fa);
+    --quiet: light-dark(#4e5f79, #b9c7df);
+    --line: light-dark(#d5dfec, #3a4962);
+    --accent: light-dark(#2252a3, #a4c5ff);
+    --selected: light-dark(#e5eefe, #243b60);
+    --review-bg: light-dark(#fff1d7, #42321d);
+    --review-ink: light-dark(#704507, #ffdc9d);
+    --same-bg: light-dark(#fde5e3, #472523);
+    --same-ink: light-dark(#8a231b, #ffc2bc);
+    --different-bg: light-dark(#e0f3ed, #213c33);
+    --different-ink: light-dark(#1d5e4a, #a4e5d1);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, sans-serif; }
+  h1, h2, h3, p { margin: 0; }
+  h1 { font: 650 17px/1.2 system-ui, sans-serif; letter-spacing: -.02em; }
+  h2 { font: 650 20px/1.2 system-ui, sans-serif; letter-spacing: -.02em; }
+  h3 { font: 650 13px/1.3 system-ui, sans-serif; color: var(--quiet); text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 6px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  small, .quiet { color: var(--quiet); font-size: 12px; }
+  .app { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+  .top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .stats { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--quiet); font-size: 13px; }
+  .stats b { color: var(--ink); font-weight: 650; }
+  .body { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 0; }
+  .body.with-source { grid-template-columns: 300px minmax(0, 1fr) 360px; }
+  .pane { min-height: 0; overflow: auto; }
+  .alerts { background: var(--panel); border-right: 1px solid var(--line); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+  .filters { padding: 10px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+  .filters input { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--raised); color: var(--ink); font: inherit; }
+  .seg { display: flex; gap: 4px; flex-wrap: wrap; }
+  .seg button { border: 1px solid var(--line); background: none; border-radius: 6px; padding: 3px 8px; font-size: 12px; }
+  .seg button[aria-pressed="true"] { background: var(--selected); color: var(--accent); font-weight: 650; }
+  .alert-list { overflow: auto; padding: 6px; }
+  .alert-list button { display: block; width: 100%; text-align: left; border: 1px solid transparent; background: none; border-radius: 6px; padding: 7px 9px; overflow-wrap: anywhere; }
+  .alert-list button:hover { background: var(--raised); }
+  .alert-list button[aria-current="true"] { background: var(--selected); border-color: var(--line); }
+  .alert-list .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .alert-list .name { font-weight: 600; }
+  .chip { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+  .REVIEW { background: var(--review-bg); color: var(--review-ink); }
+  .SAME_ENTITY { background: var(--same-bg); color: var(--same-ink); }
+  .DIFFERENT_ENTITY { background: var(--different-bg); color: var(--different-ink); }
+  .main { padding: 18px 22px 40px; }
+  .case-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .screened { color: var(--quiet); margin-top: 4px; }
+  .hits { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
+  .hits button { text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 7px 10px; min-width: 150px; }
+  .hits button[aria-pressed="true"] { background: var(--selected); border-color: var(--accent); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .decision { padding: 11px 13px; border-radius: 8px; }
+  .decision .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+  .decision strong { font-size: 16px; }
+  .decision code { font-size: 12px; background: transparent; color: inherit; }
+  .decision p { margin-top: 4px; }
+  .label-note { margin-top: 8px; font-size: 12px; color: var(--quiet); }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  thead th { color: var(--quiet); font-size: 12px; font-weight: 600; }
+  tbody th { font-weight: 600; width: 130px; }
+  td.outcome { width: 190px; font-weight: 600; }
+  td.outcome small, td small, .hits small, .candidates small { display: block; font-weight: 400; }
+  tr.decided { background: var(--raised); }
+  tr.decided th { box-shadow: inset 3px 0 0 var(--accent); }
+  .agree, .contradict { color: var(--ink); }
+  .unknown { color: var(--quiet); font-weight: 400; }
+  tr.decided .tag { display: block; font-size: 11px; font-weight: 650; color: var(--accent); }
+  .id { border: 1px solid var(--line); background: var(--raised); border-radius: 5px; padding: 0 5px; font: 600 12px/1.6 ui-monospace, monospace; margin: 1px 2px 1px 0; }
+  .id:hover, .id[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .fact { display: block; }
+  .fact + .fact { margin-top: 3px; }
+  blockquote { margin: 4px 0 0; padding-left: 9px; border-left: 2px solid var(--line); color: var(--quiet); font-size: 13px; }
+  ol.trail { list-style: none; margin: 0 0 0 5px; padding: 0; border-left: 2px solid var(--line); }
+  ol.trail li { position: relative; padding: 3px 0 7px 16px; }
+  ol.trail li::before { content: ""; position: absolute; top: 10px; left: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .candidates { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+  .candidates button { text-align: left; border: 1px solid var(--line); background: var(--raised); border-radius: 8px; padding: 10px; }
+  .candidates button[aria-pressed="true"] { border-color: var(--accent); background: var(--selected); }
+  details { margin-top: 12px; }
+  summary { color: var(--accent); font-weight: 600; cursor: pointer; width: fit-content; padding: 3px 0; }
+  .sr { padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .sr.used { box-shadow: inset 3px 0 0 var(--accent); padding-left: 9px; }
+  .source { background: var(--panel); border-left: 1px solid var(--line); padding: 16px; }
+  .source .bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .source .bar button { border: 1px solid var(--line); background: none; border-radius: 6px; padding: 2px 9px; }
+  .source dl { margin: 0; display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 5px 10px; }
+  .source dt { color: var(--quiet); font-size: 12px; padding-top: 1px; }
+  .source dd { margin: 0; overflow-wrap: anywhere; }
+  .empty { color: var(--quiet); padding: 30px; }
+  @media (max-width: 900px) {
+    .body, .body.with-source { grid-template-columns: minmax(0, 1fr); }
+    .alerts { max-height: 240px; border-right: 0; border-bottom: 1px solid var(--line); }
+    .app { height: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>Casebook <span class="quiet">· Screening workbench</span></h1>
+    <div class="stats" id="stats"></div>
+  </header>
+  <div class="body" id="body">
+    <aside class="alerts">
+      <div class="filters">
+        <input id="q" type="search" placeholder="Search alert, customer, hit or record ID" aria-label="Search alerts">
+        <div class="seg" id="seg" role="group" aria-label="Filter alerts"></div>
+      </div>
+      <nav class="alert-list" id="alerts" aria-label="Alerts"></nav>
+    </aside>
+    <main class="pane main" id="main"></main>
+    <aside class="pane source" id="source" hidden></aside>
+  </div>
+</div>
+
+<script>
+const CASEBOOK = /*__CASEBOOK__*/null;
+
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  if (!CASEBOOK) { $('main').innerHTML = '<p class="empty">No casebook data. Generate this page with <code>python3 run.py &lt;data_folder&gt; --workbench casebook.html</code>.</p>'; return; }
+
+  const WORDS = { DIFFERENT_ENTITY: 'Different entity', SAME_ENTITY: 'Same entity', REVIEW: 'Review' };
+  const OUTCOME = { agree: 'Agrees', contradict: 'Contradicts', unknown: 'Cannot compare' };
+  const CODE_CHECK = {
+    DOB_MISMATCH: ['dob'], NAME_MISMATCH_VERIFIED: ['name'], LOCATION_MISMATCH: ['location'],
+    TEMPORAL_IMPOSSIBILITY: ['time'], DECEASED: ['death'], ENTITY_TYPE_MISMATCH: ['type'],
+    NAME_DOB_LOCATION_MATCH: ['name', 'dob', 'location'], NAME_DOB_MATCH: ['name', 'dob'],
+    NAME_LOCATION_MATCH: ['name', 'location'],
+  };
+  const alerts = CASEBOOK.alerts;
+  const records = CASEBOOK.records || {};
+  const state = { filter: 'all', q: '', alert: 0, hit: 0, candidate: 0, source: null };
+
+  function alertStatus(a) {
+    const d = a.hits.map(h => h.decision);
+    if (d.length && d.every(x => x === 'DIFFERENT_ENTITY')) return { key: 'cleared', cls: 'DIFFERENT_ENTITY', text: 'Cleared' };
+    const same = d.filter(x => x === 'SAME_ENTITY').length;
+    const review = d.filter(x => x === 'REVIEW').length;
+    if (same) return { key: 'compliance', cls: 'SAME_ENTITY', text: 'To compliance' };
+    return { key: 'open', cls: 'REVIEW', text: `Open · ${review} to review` };
+  }
+  alerts.forEach(a => { a.status = alertStatus(a); });
+
+  // ---- header statistics
+  (() => {
+    const hits = alerts.flatMap(a => a.hits);
+    const n = k => hits.filter(h => h.decision === k).length;
+    const cleared = alerts.filter(a => a.status.key === 'cleared').length;
+    const labelled = hits.filter(h => h.label);
+    const right = labelled.filter(h => h.label.decision === h.decision).length;
+    const falseClears = labelled.filter(h => h.decision === 'DIFFERENT_ENTITY' && h.label.decision !== 'DIFFERENT_ENTITY').length;
+    const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '–';
+    let html = `<span><b>${alerts.length}</b> alerts, <b>${cleared}</b> cleared (${pct(cleared, alerts.length)})</span>`
+      + `<span><b>${hits.length}</b> hits: ${n('DIFFERENT_ENTITY')} different, ${n('SAME_ENTITY')} same, ${n('REVIEW')} review (${pct(n('REVIEW'), hits.length)})</span>`;
+    if (labelled.length) html += `<span>Practice labels: <b>${right}/${labelled.length}</b> decisions match, <b>${falseClears}</b> false clears</span>`;
+    $('stats').innerHTML = html;
+  })();
+
+  // ---- alert list
+  const FILTERS = [['all', 'All'], ['open', 'Open'], ['compliance', 'To compliance'], ['cleared', 'Cleared'], ['labelled', 'Labelled']];
+  function renderFilters() {
+    $('seg').innerHTML = FILTERS.map(([k, t]) => `<button type="button" data-f="${k}" aria-pressed="${state.filter === k}">${t}</button>`).join('');
+  }
+  function matches(a) {
+    if (state.filter === 'labelled') { if (!a.hits.some(h => h.label)) return false; }
+    else if (state.filter !== 'all' && a.status.key !== state.filter) return false;
+    if (!state.q) return true;
+    const q = state.q.toLowerCase();
+    const hay = [a.alert.alert_id, a.alert.customer_name, ...a.hits.flatMap(h => [h.hit_id, h.profile.name, h.customer_record_id, ...(h.evidence || [])])];
+    return hay.some(x => String(x || '').toLowerCase().includes(q));
+  }
+  function renderAlerts() {
+    const rows = alerts.map((a, i) => matches(a) ? `<button type="button" data-a="${i}" aria-current="${i === state.alert}">
+        <span class="row"><span class="name">${esc(a.alert.customer_name)}</span><span class="chip ${a.status.cls}">${esc(a.status.text)}</span></span>
+        <small>${esc(a.alert.alert_id)} · ${a.hits.length} hit${a.hits.length === 1 ? '' : 's'} · ${esc(a.alert.entity_type || '')}</small>
+      </button>` : '').join('');
+    $('alerts').innerHTML = rows || '<p class="empty">No alert matches.</p>';
+  }
+
+  // ---- source record drawer
+  const idButton = id => records[id]
+    ? `<button type="button" class="id" data-id="${esc(id)}" aria-pressed="${state.source === id}">${esc(id)}</button>`
+    : `<span class="id">${esc(id)}</span>`;
+  const ids = list => (list || []).filter(Boolean).map(idButton).join('');
+  const KIND = { CUS: 'Customer record', KYC: 'Identity check', NOTE: 'Note', SR: 'Search result' };
+  function renderSource() {
+    const el = $('source');
+    const rec = state.source && records[state.source];
+    $('body').classList.toggle('with-source', !!rec);
+    el.hidden = !rec;
+    if (!rec) return;
+    const kind = KIND[state.source.split('-')[0]] || 'Record';
+    el.innerHTML = `<div class="bar"><div><small>${kind}</small><h2>${esc(state.source)}</h2></div><button type="button" data-close>Close</button></div>
+      <dl>${Object.entries(rec).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+  }
+
+  // ---- comparison
+  function customerCell(check, cust, hit) {
+    if (check === 'type') return esc(cust.entity_type || 'Not known');
+    if (check === 'name') {
+      if (cust.verified_name) return `<span class="fact">${esc(cust.verified_name)} ${idButton(cust.verified_check)}</span><small>Verified legal name</small>`;
+      const seen = new Set();
+      const names = cust.declared_names.filter(n => !seen.has(n.value) && seen.add(n.value));
+      return names.map(n => `<span class="fact">${esc(n.value)} ${String(n.source).startsWith('CUS') ? idButton(n.source) : '<small>as screened</small>'}</span>`).join('') + '<small>Declared, not verified</small>';
+    }
+    if (check === 'dob' || check === 'time') {
+      if (!cust.dob) return '<span class="quiet">Not known</span>';
+      return `<span class="fact">${esc(cust.dob)} ${idButton(cust.dob_source)}</span><small>${cust.dob_verified ? 'From the latest approved check' : 'Declared'}</small>`;
+    }
+    if (check === 'location') {
+      if (!cust.countries.length) return '<span class="quiet">None on record</span>';
+      const by = new Map();
+      cust.countries.forEach(c => { if (!by.has(c.value)) by.set(c.value, []); by.get(c.value).push(c.source); });
+      return [...by].map(([c, src]) => `<span class="fact">${esc(c)} ${ids(src)}</span>`).join('');
+    }
+    if (check === 'death') return '<span class="quiet">Screened ' + esc(hit.screened_at || '') + '</span>';
+    return '';
+  }
+  function hitCell(check, h) {
+    const f = h.trace.hit, p = h.profile;
+    if (check === 'type') return esc(p.entity_type || 'Not known');
+    if (check === 'name') return f.names.map(n => `<span class="fact">${esc(n)}</span>`).join('');
+    if (check === 'dob') {
+      if (!f.dobs.length) return '<span class="quiet">None found in the profile or search results</span>';
+      const where = { 'dobs field': 'Listed on the profile', 'profile notes': 'From the profile notes', 'search results': 'From search results' }[f.dob_origin] || '';
+      return `<span class="fact">${esc(f.dobs.join(', '))} ${ids(f.dob_sources)}</span><small>${where}</small>`
+        + (f.dob_origin === 'profile notes' && f.dob_quote ? `<blockquote>${esc(f.dob_quote)}</blockquote>` : '');
+    }
+    if (check === 'location') return f.countries.length ? f.countries.map(c => `<span class="fact">${esc(c)}</span>`).join('') : '<span class="quiet">None on the profile</span>';
+    if (check === 'time') return f.earliest_report ? `<span class="fact">Earliest dated report ${esc(f.earliest_report)}</span><blockquote>${esc(f.earliest_report_line)}</blockquote>` : '<span class="quiet">No dated report</span>';
+    if (check === 'death') return f.death ? `Died ${esc(f.death)}` : '<span class="quiet">No date of death</span>';
+    return '';
+  }
+  const ROWS = [['type', 'Type'], ['name', 'Name'], ['dob', 'Date of birth'], ['location', 'Country'], ['time', 'Age at earliest report'], ['death', 'Date of death']];
+
+  function renderHit(a, h) {
+    if (!h.trace) return `<div class="card"><div class="decision ${h.decision}"><div class="head"><strong>${WORDS[h.decision]}</strong><code>${esc(h.reason_code)}</code></div><p>${esc(h.summary)}</p></div></div>`;
+    const cands = h.trace.candidates;
+    const ci = Math.min(state.candidate, cands.length - 1);
+    const c = cands[ci], cust = c.customer;
+    const decided = new Set((c.reason_codes || []).flatMap(code => CODE_CHECK[code] || []));
+    const checks = Object.fromEntries(c.checks.map(x => [x.name, x]));
+    const company = cust.entity_type === 'Company';
+    const rows = ROWS.filter(([k]) => checks[k] && !(k === 'death' && !h.trace.hit.death) && !(k === 'time' && !h.trace.hit.earliest_report))
+      .map(([k, label]) => {
+        const ch = checks[k];
+        const isDecided = decided.has(k) && (c.decision === 'SAME_ENTITY' ? ch.outcome === 'agree' : ch.outcome === 'contradict');
+        const lab = k === 'dob' && company ? 'Incorporation date' : (k === 'time' && company ? 'Existed at earliest report' : label);
+        return `<tr class="${isDecided ? 'decided' : ''}"><th scope="row">${lab}${isDecided ? '<span class="tag">Decided this hit</span>' : ''}</th>
+          <td>${customerCell(k, cust, { screened_at: a.alert.screened_at })}</td><td>${hitCell(k, h)}</td>
+          <td class="outcome ${ch.outcome}">${OUTCOME[ch.outcome]}<small>${esc(ch.detail)}</small></td></tr>`;
+      }).join('');
+
+    let label = '';
+    if (h.label) {
+      const ok = h.label.decision === h.decision;
+      label = `<p class="label-note">Practice label: ${esc(WORDS[h.label.decision])} (${esc(h.label.reason_codes.join(', '))}) · ${ok ? 'the engine agrees' : 'THE ENGINE DISAGREES'}</p>`;
+    }
+    let candHtml = '';
+    if (cands.length > 1) {
+      candHtml = `<h3>${cands.length} people fit this alert</h3><div class="candidates">` + cands.map((x, i) =>
+        `<button type="button" data-c="${i}" aria-pressed="${i === ci}"><b>${esc(x.customer.primary)}</b>
+          <small>${esc(x.customer.verified_name || (x.customer.declared_names[0] || {}).value || '')} · born ${esc(x.customer.dob || 'unknown')}</small>
+          <span class="chip ${x.decision}">Would be ${WORDS[x.decision].toLowerCase()}</span> <small>${esc(x.reason_codes[0])}</small></button>`).join('')
+        + `</div><p class="quiet" style="margin-top:6px">${h.reason_code === 'AMBIGUOUS_CUSTOMER_RECORD'
+            ? 'They lead to different decisions. Link the alert to one customer (account reference or login) to settle it.'
+            : 'They all lead to the same decision, so it stands.'}</p>`;
+    }
+    const sc = h.trace.hit.search_considered || [];
+    const used = new Set(h.trace.hit.dob_sources || []);
+    const srHtml = sc.length ? `<details><summary>Search results for this name: ${sc.filter(s => s.about_hit).length} about the hit, ${sc.filter(s => !s.about_hit).length} namesakes</summary>`
+      + sc.slice().sort((x, y) => (y.about_hit - x.about_hit)).map(s => `<div class="sr ${used.has(s.result_id) ? 'used' : ''}">${idButton(s.result_id)}
+          <b>${used.has(s.result_id) ? 'Used for the date of birth' : (s.about_hit ? 'About the hit' : 'Excluded')}</b>${s.why_not ? ` <small style="display:inline">· ${esc(s.why_not)}</small>` : ''}
+          <div>${esc(s.snippet)}</div></div>`).join('') + '</details>' : '';
+    const trail = [...h.trace.resolution, ...cust.path].map(s => `<li>${esc(s).replace(/\b(CUS|KYC|NOTE|SR)-[A-Z0-9]+\b/g, m => idButton(m))}</li>`).join('');
+    const p = h.profile;
+    const profile = ['categories', 'position_or_allegation', 'aliases', 'place_of_birth', 'addresses', 'match_score']
+      .filter(k => p[k]).map(k => `<dt>${k.replace(/_/g, ' ')}</dt><dd>${esc(p[k])}</dd>`).join('');
+
+    return `<div class="card">
+      <div class="decision ${h.decision}">
+        <div class="head"><strong>${WORDS[h.decision]}</strong><code>${esc(h.reason_code)}</code>
+          <span>Customer record: ${h.customer_record_id ? (h.customer_record_id === 'AMBIGUOUS' ? 'AMBIGUOUS' : idButton(h.customer_record_id)) : 'none found'}</span></div>
+        <p>${esc(h.summary)}</p>
+        ${h.evidence.length ? `<p>Evidence: ${ids(h.evidence)}</p>` : ''}
+      </div>${label}
+      ${candHtml}
+      <h3>Customer ${esc(cust.primary || '(as screened)')} against hit ${esc(h.hit_id)}</h3>
+      <table><thead><tr><th scope="col">Field</th><th scope="col">Customer</th><th scope="col">Watchlist profile</th><th scope="col">Result</th></tr></thead><tbody>${rows}</tbody></table>
+      <h3>How the customer was found</h3>
+      <ol class="trail">${trail || '<li>No customer record was found; only the screened details are known.</li>'}</ol>
+      ${srHtml}
+      <details><summary>Watchlist profile</summary><dl class="source" style="border:0;padding:8px 0;display:grid;grid-template-columns:150px minmax(0,1fr);gap:5px 10px">${profile}</dl>
+        ${h.profile_notes ? `<blockquote style="white-space:pre-wrap">${esc(h.profile_notes)}</blockquote>` : ''}</details>
+    </div>`;
+  }
+
+  function renderMain() {
+    const a = alerts[state.alert];
+    if (!a) { $('main').innerHTML = '<p class="empty">Select an alert.</p>'; return; }
+    const al = a.alert;
+    const screened = [al.entity_type, al.dob && 'born ' + al.dob, al.country, al.city,
+      al.account_ref && 'account ' + al.account_ref, al.login_handle && 'login ' + al.login_handle, al.email].filter(Boolean).map(esc).join(' · ');
+    const h = a.hits[Math.min(state.hit, a.hits.length - 1)];
+    $('main').innerHTML = `<div class="case-header">
+        <div><small>Alert ${esc(al.alert_id)} · screened ${esc(al.screened_at || '')}</small><h2>${esc(al.customer_name)}</h2><p class="screened">${screened}</p></div>
+        <span class="chip ${a.status.cls}">${esc(a.status.text)}</span>
+      </div>
+      <div class="hits" role="group" aria-label="Hits in this alert">${a.hits.map((x, i) =>
+        `<button type="button" data-h="${i}" aria-pressed="${x === h}"><b>${esc(x.profile.name || x.hit_id)}</b>
+          <small>${esc(x.hit_id)} · ${esc(x.profile.primary_category || x.profile.categories || '')}</small>
+          <span class="chip ${x.decision}">${WORDS[x.decision]}</span></button>`).join('')}</div>
+      ${h ? renderHit(a, h) : '<p class="empty">This alert has no hits.</p>'}`;
+  }
+
+  // Deep links: casebook.html#A-123ABC or casebook.html#A-123ABC/H-456DEF
+  function readHash() {
+    const [aid, hid] = decodeURIComponent(location.hash.slice(1)).split('/');
+    const ai = alerts.findIndex(a => a.alert.alert_id === aid);
+    if (ai < 0) return;
+    state.alert = ai;
+    const hi = alerts[ai].hits.findIndex(h => h.hit_id === hid);
+    state.hit = hi < 0 ? 0 : hi;
+    state.candidate = 0;
+  }
+  function writeHash() {
+    const a = alerts[state.alert];
+    if (!a) return;
+    const h = a.hits[state.hit];
+    history.replaceState(null, '', '#' + a.alert.alert_id + (h ? '/' + h.hit_id : ''));
+  }
+  function render() { renderFilters(); renderAlerts(); renderMain(); renderSource(); writeHash(); }
+  window.addEventListener('hashchange', () => { readHash(); render(); });
+  readHash();
+
+  document.addEventListener('click', e => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    if (t.dataset.f) { state.filter = t.dataset.f; }
+    else if (t.dataset.a) { state.alert = +t.dataset.a; state.hit = 0; state.candidate = 0; $('main').scrollTop = 0; }
+    else if (t.dataset.h) { state.hit = +t.dataset.h; state.candidate = 0; }
+    else if (t.dataset.c) { state.candidate = +t.dataset.c; }
+    else if (t.dataset.id) { state.source = state.source === t.dataset.id ? null : t.dataset.id; }
+    else if ('close' in t.dataset) { state.source = null; }
+    else return;
+    render();
+  });
+  $('q').addEventListener('input', e => { state.q = e.target.value.trim(); renderAlerts(); });
+
+  render();
+})();
+</script>
+</body>
+</html>
