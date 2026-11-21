@@ -162,6 +162,17 @@ def same_in_given_parts(a: PDate, b: PDate) -> bool:
     return dob_agrees(a, b)
 
 
+def max_age_by_year(birth: PDate, when: PDate) -> int:
+    """The oldest someone born in that year could have been in the year of a date.
+
+    The policy's age test is applied on years, as the practice labels word it
+    ("born in 2007, so at most 13" on a date in 2020). It is also the cautious
+    reading: counting the birthday can only make someone younger, and so easier
+    to clear as too young.
+    """
+    return when.y - birth.y
+
+
 def max_age_at(birth: PDate, when: PDate) -> int:
     """The oldest the person could have been on a date, given partial dates."""
     by, bm, bd = birth.earliest()

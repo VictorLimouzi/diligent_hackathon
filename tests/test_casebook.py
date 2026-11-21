@@ -515,6 +515,7 @@ class EdgeCases(unittest.TestCase):
             person("CUS-N2", "Erik Dahl", "1970-01-01", "Norway", "+47 32"),
             person("CUS-N3", "Ola Berg", "1980-02-02", "Norway", "+47 33"),
             person("CUS-N4", "Nora Lund", "1990-03-03", "Norway", "+47 34"),
+            person("CUS-T1", "Timo Aalto", "2004-12-20", "Finland", "+358 1"),
         ]
         notes = [
             {"note_id": "NOTE-N1", "requester_email": "cus-n1@x.example", "created_at": "2023-02-19", "channel": "kyc",
@@ -591,6 +592,12 @@ class EdgeCases(unittest.TestCase):
             hit("H-N3", "Berg, Ola", countries=["Chile"]),
             hit("H-N3-PERU", "Berg, Ola", countries=["Peru"]),
             hit("H-N4", "Lund, Nora", countries=["Norway"], dobs=["1990-03-03"]),
+            # Reports dated when the customer, born in December 2004, was 15: once in the year he
+            # turned 16, once the year before.
+            hit("H-T-16", "Aalto, Timo", countries=["Finland"],
+                profile_notes="According to x.example; March 1, 2020: Timo Aalto was fined."),
+            hit("H-T-15", "Aalto, Timo", countries=["Finland"],
+                profile_notes="According to x.example; March 1, 2019: Timo Aalto was fined."),
         ]
         alerts = [
             alert("A-D", "Sara Lindqvist", ["H-D-DK", "H-D-SAME"], account_ref="ACC-D1"),
@@ -608,6 +615,7 @@ class EdgeCases(unittest.TestCase):
             alert("A-N2", "Erik Dahl", ["H-N2"], login_handle="cusn2"),
             alert("A-N3", "Ola Berg", ["H-N3", "H-N3-PERU"], login_handle="cusn3"),
             alert("A-N4", "Nora Lund", ["H-N4"], login_handle="cusn4"),
+            alert("A-T", "Timo Aalto", ["H-T-16", "H-T-15"], login_handle="cust1"),
             alert("A-NOHITS", "Yusuf Demir", [], login_handle="cusk1"),
             alert("A-GHOST", "Yusuf Demir", ["H-DOES-NOT-EXIST"], login_handle="cusk1"),
         ]
@@ -711,6 +719,15 @@ class EdgeCases(unittest.TestCase):
         r = self.results[("A-N4", "H-N4")]
         self.assertNotEqual(r["decision"], "DIFFERENT_ENTITY")
 
+    def test_age_at_the_report_is_counted_on_years(self):
+        # Born 2004, report in 2020: he could have been 16, so the hit is not cleared as too young,
+        # although his birthday that year had not come. The practice labels count the same way.
+        self.assertEqual(self.got("A-T", "H-T-16"), ("REVIEW", "INSUFFICIENT_DATA"))
+        # Report in 2019: at most 15 whatever the birthday.
+        r = self.results[("A-T", "H-T-15")]
+        self.assertEqual((r["decision"], r["reason_code"]), ("DIFFERENT_ENTITY", "TEMPORAL_IMPOSSIBILITY"))
+        self.assertIn("at most 15", r["reason"])
+
     def test_alert_without_hits_and_hit_that_does_not_exist(self):
         self.assertFalse([k for k in self.results if k[0] == "A-NOHITS"])
         self.assertEqual(self.got("A-GHOST", "H-DOES-NOT-EXIST"), ("REVIEW", "INSUFFICIENT_DATA"))
@@ -786,6 +803,39 @@ class Reasons(unittest.TestCase):
             self.assertEqual(reason_problems(r, ids_of(r) if r.get("trace") else None), [], (r["hit_id"], r["reason"]))
 
 
+class PracticeLabels(unittest.TestCase):
+    """Everything the organisers check on a right decision, against the 50 answered hits:
+    the decision, an accepted reason code, an accepted customer record, the exact evidence,
+    and every fact the reference reason states."""
+
+    def test_every_label_matches_and_every_reference_fact_is_stated(self):
+        import re
+        folder = Golden.FOLDER
+        labels_path = os.path.join(folder, "practice_labels.jsonl")
+        if not os.path.isfile(labels_path):
+            self.skipTest("dev data not present")
+        from casebook.engine import decide_all
+        ours = {r["hit_id"]: r for r in decide_all(Data(folder))}
+        fact = re.compile(r"\b(?:CUS|KYC|NOTE|SR)-[0-9A-F]{6}\b|\b\d{4}(?:-\d\d){0,2}\b|\b\d{1,3}\b")
+        with open(labels_path, encoding="utf-8") as f:
+            labels = [json.loads(line) for line in f if line.strip()]
+        self.assertGreater(len(labels), 0)
+        for label in labels:
+            r, where = ours[label["hit_id"]], label["hit_id"]
+            self.assertEqual(r["decision"], label["decision"], where)
+            self.assertIn(r["reason_code"], label["reason_codes"], where)
+            self.assertIn(r["customer_record_id"], label["customer_record_ids"], where)
+            self.assertEqual(sorted(r["evidence"]), sorted(label["evidence"]), where)
+            reference = label["reference_reason"]
+            missing = set(fact.findall(reference)) - set(fact.findall(r["reason"]))
+            self.assertEqual(missing, set(), (where, reference, r["reason"]))
+            for name in re.findall(r"hit's name (.+?)(?:\.(?:\s|$)|$)", reference):
+                self.assertIn(name.strip(), r["reason"], where)
+            for countries in re.findall(r"linked (?:only )?to ([A-Z][^.]*?)(?: but|\.|$)", reference):
+                for country_ in countries.split(","):
+                    self.assertIn(country_.strip(), r["reason"], where)
+
+
 class Golden(unittest.TestCase):
     """The scored output must not move unless the policy code is changed on purpose.
 
@@ -796,7 +846,7 @@ class Golden(unittest.TestCase):
     FOLDER = os.environ.get("CASEBOOK_DATA") or next(
         (p for p in (os.path.join(_DATA, "screening", "dev"), os.path.join(_DATA, "dev_from_workbook"))
          if os.path.isdir(p)), os.path.join(_DATA, "screening", "dev"))
-    SHA256 = "abdcea7f0653b2afca8a948e6345ddd017a08ecc28a4f289332b5e3578bfd920"
+    SHA256 = "b35940707fbce104cb171bf5ccaf685b92b4581234ea5bd00e83a75955e419d8"
 
     def test_decisions_unchanged(self):
         if not os.path.isdir(self.FOLDER):

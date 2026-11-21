@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from .customer import Picture
-from .dates import PDate, dob_agrees, dob_contradicts, max_age_at
+from .dates import PDate, dob_agrees, dob_contradicts, max_age_by_year
 from .hit import HitFacts
 from .load import Data
 from .names import is_latin, matched_pairs, names_agree, parts_match
@@ -295,12 +295,13 @@ def _time_check(pic: Picture, hit: HitFacts) -> Check:
                          f"The company was incorporated {_when(c)} ({pic.dob.source}), after the hit's "
                          f"earliest dated report of {r.iso()}.", src)
         return Check("time", "agree", f"The company existed at the earliest dated report ({r.iso()}).")
-    age = max_age_at(c, r)
+    age = max_age_by_year(c, r)
     if age < 16:
         return Check("time", "contradict",
                      f"The customer was born in {c.y} ({pic.dob.source}), so they were at most {max(age, 0)} "
                      f"when the hit's profile reports activity on {r.iso()}.", src)
-    return Check("time", "agree", f"The customer was at least 16 at the earliest dated report ({r.iso()}).")
+    return Check("time", "agree", f"The customer, born in {c.y}, could have been 16 or older at the earliest "
+                                  f"dated report ({r.iso()}).")
 
 
 def _death_check(hit: HitFacts, screened_at: Optional[PDate]) -> Check:
