@@ -145,6 +145,42 @@ def names_agree(parts_a, parts_b, rules=None):
     return go(0, frozenset(), 0, na, nb)
 
 
+def matched_pairs(parts_a, parts_b, rules=None):
+    """Which parts of two names match, for explaining a comparison: [(a, b), ...].
+
+    A plain reading: each part pairs with the first unused part it matches, or with
+    two adjacent parts written apart ("bluegrass" with "blue grass").
+    """
+    pa, pb = list(parts_a or ()), list(parts_b or ())
+    used_a, used_b, out = set(), set(), []
+    for i, a in enumerate(pa):
+        for j, b in enumerate(pb):
+            if j not in used_b and parts_match(a, b, rules):
+                used_a.add(i)
+                used_b.add(j)
+                out.append((a, b))
+                break
+    for i, a in enumerate(pa):
+        if i in used_a:
+            continue
+        for j in range(len(pb) - 1):
+            if j not in used_b and j + 1 not in used_b and parts_match(a, pb[j] + pb[j + 1], rules):
+                used_a.add(i)
+                used_b.update((j, j + 1))
+                out.append((a, pb[j] + " " + pb[j + 1]))
+                break
+    for j, b in enumerate(pb):
+        if j in used_b:
+            continue
+        for i in range(len(pa) - 1):
+            if i not in used_a and i + 1 not in used_a and parts_match(pa[i] + pa[i + 1], b, rules):
+                used_a.update((i, i + 1))
+                used_b.add(j)
+                out.append((pa[i] + " " + pa[i + 1], b))
+                break
+    return out
+
+
 def split_aliases(aliases):
     """A hit's aliases field: separated by ';', each possibly tagged in brackets."""
     if not aliases:

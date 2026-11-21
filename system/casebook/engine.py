@@ -7,6 +7,21 @@ from .load import Data, as_list, text
 from .policy import REVIEW, Decision, decide
 
 
+# One customer's decision in a few words, for a hit that several customers fit.
+_IN_WORDS = {
+    "ENTITY_TYPE_MISMATCH": "be cleared (a person against a company)",
+    "DOB_MISMATCH": "be cleared (the date of birth contradicts the hit's)",
+    "NAME_MISMATCH_VERIFIED": "be cleared (the verified name does not match)",
+    "TEMPORAL_IMPOSSIBILITY": "be cleared (too young, or not yet incorporated, at the earliest report)",
+    "DECEASED": "be cleared (the listed party died before the screening)",
+    "LOCATION_MISMATCH": "be cleared (no country is shared)",
+    "NAME_DOB_LOCATION_MATCH": "be confirmed (name, date of birth and country agree)",
+    "NAME_DOB_MATCH": "be confirmed (name and date of birth agree)",
+    "NAME_LOCATION_MATCH": "be confirmed (name and country agree)",
+    "INSUFFICIENT_DATA": "go to review (nothing contradicts and too little agrees)",
+}
+
+
 def _picture_view(pic):
     return {
         "records": list(pic.records),
@@ -93,7 +108,7 @@ def decide_alert(data: Data, alert):
                 shared = [c for c in per_person[0].reason_codes
                           if all(c in d.reason_codes for d in per_person)]
                 codes = shared or per_person[0].reason_codes
-                lead = f"{len(per_person)} people fit the alert and each leads to the same decision."
+                lead = f"{len(per_person)} customers fit the alert and each leads to the same decision."
                 summary = lead + " " + per_person[0].summary
                 first = per_person[0].reason_parts
                 reason = " ".join([lead] + first[:2] + first[-1:]) if len(first) > 3 else " ".join([lead] + first)
@@ -104,10 +119,12 @@ def decide_alert(data: Data, alert):
                     for r in pic.records:
                         if r not in evidence:
                             evidence.append(r)
-                parts = [f"{pic.primary}: {d.decision} ({d.reason_code})" for pic, d in zip(pictures, per_person)]
-                summary = f"{len(per_person)} people fit the alert and lead to different decisions: " \
+                parts = [f"{pic.primary} would {_IN_WORDS.get(d.reason_code, 'go to review')}"
+                         for pic, d in zip(pictures, per_person)]
+                summary = f"{len(per_person)} customers fit the alert and lead to different decisions: " \
                           + "; ".join(parts) + "."
-                reason = summary + " The alert carries no link that picks one of them, so a person must review it."
+                reason = summary + (" The alert carries no account, login or email that picks one of them, "
+                                    "so a person must review it.")
 
         result = {
             "hit_id": hit_id,
@@ -131,6 +148,10 @@ def decide_alert(data: Data, alert):
         # Advisory add-ons, computed after the decision and never feeding back into it.
         result["blocker"] = blocker(pictures, per_person, decision, codes[0])
         result["counterfactuals"] = counterfactuals(data, pictures, facts, per_person, screened_at, decision)
+        # A review says what would settle it, as the last clause of its reason.
+        settle = next((c["settle"] for c in result["counterfactuals"] if c.get("settle")), None)
+        if settle and decision == REVIEW and len(per_person) == 1:
+            result["reason"] = result["reason"].rstrip(".") + "; " + settle + "."
         result["features"] = feature_row(data, alert, hit, pictures, facts, per_person, result)
         results.append(result)
     return results

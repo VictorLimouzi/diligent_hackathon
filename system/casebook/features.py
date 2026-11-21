@@ -10,12 +10,23 @@ from .customer import Fact, Picture
 from .dates import PDate
 from .hit import HitFacts
 from .load import Data, as_list, text
-from .policy import REVIEW, decide
+from .policy import REVIEW, _the, decide
 
 
 def _outcome(data, pic, hit, screened_at):
     d = decide(data, pic, hit, screened_at)
     return {"decision": d.decision, "reason_code": d.reason_code}
+
+
+_WOULD = {"SAME_ENTITY": "confirm it", "DIFFERENT_ENTITY": "clear it", "REVIEW": "still leave it for review"}
+
+
+def _settles(item, wording):
+    """One clause for the written reason: what the missing fact would do to the hit.
+    `wording` has {0} and {1} where the first and second outcome go."""
+    would = [_WOULD[o["decision"]] for o in item["outcomes"]] + ["", ""]
+    item["settle"] = wording.format(would[0], would[1])
+    return item
 
 
 def counterfactuals(data: Data, pictures, facts: HitFacts, per_person, screened_at, final_decision):
@@ -47,7 +58,7 @@ def counterfactuals(data: Data, pictures, facts: HitFacts, per_person, screened_
         same = replace(facts, dobs=[c], dob_origin="dobs field", dob_sources=[])
         far = replace(facts, dobs=[PDate(c.y - 10)], dob_origin="dobs field", dob_sources=[])
         vague = bool(facts.dobs)
-        out.append({
+        out.append(_settles({
             "fact": "hit_dob",
             "question": (f"Find the hit's exact {what}: the profile only narrows it to "
                          f"{', '.join(d.iso() for d in facts.dobs)}." if vague
@@ -56,27 +67,29 @@ def counterfactuals(data: Data, pictures, facts: HitFacts, per_person, screened_
                 {"if": f"it is {c.iso()}, the customer's", **_outcome(data, pic, same, screened_at)},
                 {"if": "it is more than a year away from the customer's", **_outcome(data, pic, far, screened_at)},
             ],
-        })
+        }, f"the hit's {'exact ' if vague else ''}{what} would settle it, since {c.iso()} (the customer's) would {{0}} "
+           f"and a date more than a year away would {{1}}"))
 
     # The customer's date of birth is not known.
     if not pic.dob and facts.dobs:
         h = facts.dobs[0]
         same = replace(pic, dob=Fact(h, "hypothetical"))
         far = replace(pic, dob=Fact(PDate(h.y - 10), "hypothetical"))
-        out.append({
+        out.append(_settles({
             "fact": "customer_dob",
             "question": f"Verify the customer's {what}: no approved check or record gives one.",
             "outcomes": [
                 {"if": f"it is {h.iso()}, as the hit lists", **_outcome(data, same, facts, screened_at)},
                 {"if": "it is more than a year away from the hit's", **_outcome(data, far, facts, screened_at)},
             ],
-        })
+        }, f"the customer's {what} would settle it, since {h.iso()} (as the hit lists) would {{0}} "
+           f"and a date more than a year away would {{1}}"))
 
     # The customer's name cannot be used (placeholders), or is not verified.
     if checks["name"].outcome == "unknown" and facts.names:
         agree = replace(pic, verified_name=Fact(facts.names[0], "hypothetical"))
         differ = replace(pic, verified_name=Fact("Zzyqx Qvwzk", "hypothetical"))
-        out.append({
+        out.append(_settles({
             "fact": "customer_name",
             "question": "Verify the customer's legal name with an approved identity check: "
                         "the names on file cannot settle the comparison.",
@@ -84,12 +97,13 @@ def counterfactuals(data: Data, pictures, facts: HitFacts, per_person, screened_
                 {"if": f"the verified name agrees with {facts.names[0]}", **_outcome(data, agree, facts, screened_at)},
                 {"if": "the verified name agrees with none of the hit's names", **_outcome(data, differ, facts, screened_at)},
             ],
-        })
+        }, "an approved identity check of the customer's legal name would settle it, since a name agreeing with "
+           "the hit's would {0} and one agreeing with none of the hit's names would {1}"))
 
     # Name and date of birth agree but the countries differ: only a shared country confirms.
     if (checks["location"].outcome == "contradict" or checks["location"].blocks_confirm) and facts.countries:
         tied = replace(pic, countries=pic.countries + [Fact(facts.countries[0], "hypothetical")])
-        out.append({
+        out.append(_settles({
             "fact": "customer_country",
             "question": f"Ask whether the customer has ever lived in or held the nationality of "
                         f"{', '.join(facts.countries)}.",
@@ -97,7 +111,7 @@ def counterfactuals(data: Data, pictures, facts: HitFacts, per_person, screened_
                 {"if": f"they have a tie to {facts.countries[0]}", **_outcome(data, tied, facts, screened_at)},
                 {"if": "they have none", "decision": REVIEW, "reason_code": "INSUFFICIENT_DATA"},
             ],
-        })
+        }, f"a tie between the customer and {_the(facts.countries[0])} would {{0}}"))
 
     # A company with an agreeing name needs a shared country to confirm.
     if pic.company and checks["location"].outcome == "unknown" and checks["name"].outcome == "agree":
@@ -105,27 +119,28 @@ def counterfactuals(data: Data, pictures, facts: HitFacts, per_person, screened_
         if cust_countries and not facts.countries:
             tied = replace(facts, countries=[cust_countries[0]])
             apart = replace(facts, countries=["Atlantis"])
-            out.append({
+            out.append(_settles({
                 "fact": "hit_country",
                 "question": "Find the country the listed company is registered or operates in.",
                 "outcomes": [
                     {"if": f"it is {cust_countries[0]}", **_outcome(data, pic, tied, screened_at)},
                     {"if": "it is a country the customer has no tie to", **_outcome(data, pic, apart, screened_at)},
                 ],
-            })
+            }, f"the listed company's country would settle it, since {cust_countries[0]} would {{0}} "
+               f"and a country the customer has no tie to would {{1}}"))
 
     # Location is unknown for a person: a country on either side could still clear it.
     if not pic.company and checks["location"].outcome == "unknown" and not facts.countries \
             and checks["dob"].outcome != "agree" and pic.countries:
         apart = replace(facts, countries=["Atlantis"])
-        out.append({
+        out.append(_settles({
             "fact": "hit_country",
             "question": "Find a country tied to the hit: the profile lists none.",
             "outcomes": [
                 {"if": "it is a country the customer has no tie to", **_outcome(data, pic, apart, screened_at)},
                 {"if": "it is one of the customer's countries", "decision": REVIEW, "reason_code": "INSUFFICIENT_DATA"},
             ],
-        })
+        }, "a country for the hit that the customer has no tie to would {0}"))
     return out
 
 

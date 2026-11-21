@@ -701,6 +701,76 @@ class EdgeCases(unittest.TestCase):
         self.assertEqual(self.got("A-GHOST", "H-DOES-NOT-EXIST"), ("REVIEW", "INSUFFICIENT_DATA"))
 
 
+def reason_problems(result, known_ids=None):
+    """What is wrong with one written reason; an empty list when it is well formed."""
+    import re
+    reason, out = result["reason"], []
+    bare = re.sub(r"\s*\([^)]*\)", "", re.sub(r'"[^"]*"', "Q", reason))   # names and record IDs set aside
+    n = len(re.findall(r"[.!?](?=\s|$)", bare))
+    if not 2 <= n <= 4:
+        out.append(f"{n} sentences")
+    if re.search(r"\.\.|,,|  | [.,;:]|\(\)|;;|\bNone\b|\{|\}", bare):
+        out.append("odd punctuation or an unfilled value")
+    if known_ids is not None:
+        for rid in re.findall(r"\b(?:CUS|KYC|NOTE|SR)-[0-9A-Z]+\b", reason):
+            if rid not in known_ids:
+                out.append(f"{rid} is not one of this hit's records")
+    return out
+
+
+def ids_of(result):
+    """Every record a hit's decision could rightly name: the customer's and the hit's."""
+    ids = set(result["evidence"])
+    trace = result.get("trace") or {}
+    for s_ in (trace.get("hit") or {}).get("search_considered", []):
+        ids.add(s_["result_id"])
+    for c in trace.get("candidates", []):
+        cu = c["customer"]
+        ids.update(cu["records"])
+        ids.update(x for x in (cu.get("verified_check"), cu.get("dob_source")) if x)
+        ids.update(f["source"] for f in cu["countries"])
+        for check in c["checks"]:
+            ids.update(check["sources"])
+            ids.update(__import__("re").findall(r"\b(?:CUS|KYC|NOTE|SR)-[0-9A-Z]+\b", check["detail"]))
+    return ids
+
+
+class Reasons(unittest.TestCase):
+    """A reason must be readable on its own: two to four sentences, this hit's facts, real record IDs."""
+
+    def test_invented_folders(self):
+        for case in (Policy, EdgeCases):
+            case.setUpClass()
+            try:
+                for key, r in case.results.items():
+                    self.assertEqual(reason_problems(r, ids_of(r) if r.get("trace") else None), [], (key, r["reason"]))
+            finally:
+                case.tearDownClass()
+
+    def test_a_reason_says_why(self):
+        Policy.setUpClass()
+        try:
+            got = {k: v["reason"] for k, v in Policy.results.items()}
+        finally:
+            Policy.tearDownClass()
+        # a name clear says which part matched and what a match needs
+        self.assertIn("only Musa matches", got[("A-5", "H-NAME")])
+        self.assertIn("two matching parts", got[("A-5", "H-NAME")])
+        # a review says what would settle it
+        self.assertIn("would settle it", got[("A-6", "H-PLACE")])
+        # a country review says which tie would confirm it
+        self.assertIn("a tie between the customer and Canada would confirm it", got[("A-1", "H-ABROAD")])
+        # several customers: each one's outcome in words
+        self.assertIn("would be cleared", got[("A-2", "H-SEPT")])
+
+    def test_development_set(self):
+        if not os.path.isdir(Golden.FOLDER):
+            self.skipTest("dev data not present")
+        from casebook.engine import decide_all
+        for r in decide_all(Data(Golden.FOLDER)):
+            self.assertEqual(reason_problems(r, ids_of(r) if r.get("trace") else None), [], (r["hit_id"], r["reason"]))
+
+
 class Golden(unittest.TestCase):
     """The scored output must not move unless the policy code is changed on purpose.
 
