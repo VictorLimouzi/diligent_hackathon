@@ -24,6 +24,11 @@ def review_everything(folder, out, why):
     with REVIEW rather than write nothing. A hit is never cleared on a failure."""
     import json
     path = os.path.join(folder, "hits.jsonl")
+    if not os.path.exists(path):
+        # The hits file under another name: the first .jsonl file whose name mentions hits.
+        named = sorted(fn for fn in os.listdir(folder) if "hit" in fn.lower() and fn.lower().endswith(".jsonl"))
+        if named:
+            path = os.path.join(folder, named[0])
     rows = []
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -66,7 +71,11 @@ def main(argv):
                     "evidence": []})
         write_decisions(results, out)
     except Exception as exc:  # noqa: BLE001
-        n = review_everything(folder, out, type(exc).__name__)
+        try:
+            n = review_everything(folder, out, type(exc).__name__)
+        except OSError as missing:
+            sys.stderr.write("error: cannot read the hits in %s (%s); nothing written\n" % (folder, missing))
+            return 1
         sys.stderr.write("error: %s: %s; wrote REVIEW for %d hits\n" % (type(exc).__name__, exc, n))
         return 0
     counts = {}

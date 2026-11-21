@@ -10,8 +10,9 @@ Two failure kinds are counted separately:
   unread: the extractor returned nothing        -> costs at most a review
   WRONG:  the extractor returned something else -> could clear a true match
 
-Usage: .venv/bin/python -m evals.wording [--n 60] [--refresh]
-Templates are cached in out/wording/ so reruns are free and repeatable.
+Usage: .venv/bin/python -m evals.wording [--n 60] [--round 1|2|3] [--refresh]
+Templates are cached in out/wording/ so reruns are free and repeatable. Each
+round asks for a different style, so the rounds do not repeat each other.
 """
 import argparse
 import json
@@ -85,8 +86,21 @@ KINDS = {
 }
 
 
-def templates(kind, n, refresh=False):
-    path = os.path.join(OUT, f"{kind}.json")
+# What each round adds to the request. Round 1 is the plain request.
+ROUNDS = {
+    1: "",
+    2: ("\n\nWrite as different authors would: a hurried call-centre agent, a compliance officer writing "
+        "formally, a machine-generated log line, a journalist, someone writing English as a second language. "
+        "Prefer uncommon verbs, passive and indirect constructions and long subordinate clauses. Avoid the "
+        "most obvious phrasing for this kind of sentence."),
+    3: ("\n\nUse the conventions of short records: abbreviations and labels, colons, brackets, slashes and "
+        "semicolons, note-style fragments without verbs, facts in an unexpected order, and British, American "
+        "and Indian English usage. Keep every placeholder intact."),
+}
+
+
+def templates(kind, n, refresh=False, round_=1):
+    path = os.path.join(OUT, f"{kind}.json" if round_ == 1 else f"{kind}.r{round_}.json")
     if not refresh and os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             return json.load(f)
@@ -99,7 +113,8 @@ def templates(kind, n, refresh=False):
         "Make the templates as different from each other as you can: different sentence structures, word order, "
         "voice, register (terse log line, formal record, casual note), vocabulary and punctuation. Put facts in "
         "unusual positions. Some may be two short sentences. Do not invent any other names, numbers or dates.\n\n"
-        "Output one template per line and nothing else: no numbering, no quotes, no commentary.")
+        "Output one template per line and nothing else: no numbering, no quotes, no commentary."
+        + ROUNDS[round_])
     request = client.build_request(
         model=client.model_interactive(), feature="queue",
         system="You write realistic, varied text for testing an information-extraction system.",
@@ -235,13 +250,15 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--n", type=int, default=60, help="templates to ask for per kind")
     ap.add_argument("--refresh", action="store_true", help="ask for new templates")
+    ap.add_argument("--round", type=int, default=1, choices=sorted(ROUNDS), dest="round_",
+                    help="which style of templates to use")
     ap.add_argument("--title-case-names", action="store_true", help="write names in notes as 'Amina Bello', not capitals")
     ap.add_argument("--show", type=int, default=6, help="examples to print per failure kind")
     args = ap.parse_args()
     total_wrong = 0
     report = {}
     for kind in KINDS:
-        items = templates(kind, args.n, args.refresh)
+        items = templates(kind, args.n, args.refresh, args.round_)
         n, unread, wrong, ex = run(kind, items, random.Random(7), caps_names=not args.title_case_names)
         total_wrong += wrong
         report[kind] = {"templates": len(items), "sentences": n, "unread": unread, "wrong": wrong}
@@ -250,7 +267,8 @@ def main():
             for text, detail in ex[which][:args.show]:
                 print(f"   {which.upper():6s} {detail}\n          {text}")
     os.makedirs(OUT, exist_ok=True)
-    with open(os.path.join(OUT, "report.json"), "w", encoding="utf-8") as f:
+    name = "report.json" if args.round_ == 1 else f"report.r{args.round_}.json"
+    with open(os.path.join(OUT, name), "w", encoding="utf-8") as f:
         json.dump(report, f, indent=1)
     print("\n" + json.dumps(report))
     return 1 if total_wrong else 0

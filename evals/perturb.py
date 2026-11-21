@@ -260,10 +260,13 @@ class Corpus:
 
 def groups_from(raw):
     """The documented list-of-lists variant format, excluding company suffixes."""
-    if not isinstance(raw, dict) or not isinstance(raw.get("name_variants"), list):
+    if not isinstance(raw, dict):
         return []
-    return [g for g in raw["name_variants"] if isinstance(g, list)
-            and all(isinstance(v, str) for v in g)]
+    # The file has named its list "name_variants" in one release and "groups" in another.
+    for key in ("name_variants", "groups", "variants"):
+        if isinstance(raw.get(key), list):
+            return [g for g in raw[key] if isinstance(g, list) and all(isinstance(v, str) for v in g)]
+    return []
 
 
 REPRESENTATIONS = (
