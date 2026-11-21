@@ -217,6 +217,15 @@ def decide(data: Data, pic: Picture, hit: HitFacts, screened_at: Optional[PDate]
     death = _death_check(hit, screened_at)
     checks += [name, dob, loc, time, death]
 
+    # An approved identity check whose birth date (or name) could not be read may hold the
+    # verified fact. Whatever was used in its place must not clear the hit.
+    if pic.unread_checks:
+        doubt = (" But an identity-check note (%s) could not be read in full, so this cannot clear the hit."
+                 % ", ".join(pic.unread_checks))
+        for c in (dob, time) + ((name,) if pic.unread_check_names else ()):
+            if c.outcome == "contradict":
+                c.outcome, c.detail = "unknown", c.detail + doubt
+
     by = {c.name: c for c in checks}
     name_dob_agree = name.outcome == "agree" and dob.outcome == "agree"
     # A date that is present but unreadable might agree: then country alone must not clear.

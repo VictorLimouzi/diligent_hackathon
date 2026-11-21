@@ -4,7 +4,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-from .countries import country, is_named_place
+from .countries import countries_in_text, country, is_named_place
 from .dates import PDate, parse_date, same_in_given_parts
 from .extract import note_countries, parse_kyc_note
 from .load import Data, text
@@ -169,6 +169,10 @@ class Picture:
     path: List[str] = field(default_factory=list)
     countries_unrecognised: List[str] = field(default_factory=list)
     countries_mentioned: List[Fact] = field(default_factory=list)   # named in a note, not as a place lived
+    # Identity-check notes that read as approved but whose name or birth date could not be read.
+    # They may hold the verified facts, so what is on record instead must not clear a hit.
+    unread_checks: List[str] = field(default_factory=list)
+    unread_check_names: List[str] = field(default_factory=list)   # those whose name was not read
 
 
 def _approved_checks(data: Data, records):
@@ -271,10 +275,24 @@ def build_picture(data: Data, records, primary, alert) -> Picture:
         if not verified["countries"]:
             # The approved document's country could not be read, so it is unknown, not absent.
             unrecognised.append(f"document country of {verified['id']}")
+    unread_checks, unread_names = [], []
     for cid, r in zip(records, recs):
         email = text(r.get("email")).lower()
         for n in data.notes_by_email.get(email, []) if email else []:
             if text(n.get("channel")).lower() == "kyc":
+                parsed = parse_kyc_note(text(n.get("text")), n.get("created_at"))
+                used = verified is not None and verified["id"] == n.get("note_id")
+                if parsed and parsed["approved"] and not (parsed["name"] and parsed["dob"]) \
+                        and n.get("note_id") not in unread_checks:
+                    unread_checks.append(n.get("note_id"))
+                    if not parsed["name"]:
+                        unread_names.append(n.get("note_id"))
+                if not used:
+                    # A check that is not the one relied on (older, failed, or unread) still names
+                    # a country the customer may be tied to: enough to stop a location clear.
+                    for c in countries_in_text(text(n.get("text")), loose=True):
+                        if not any(f.value == c for f in countries):
+                            mentioned.append(Fact(c, n.get("note_id")))
                 continue
             lived, named = note_countries(text(n.get("text")))
             for c in lived:
@@ -285,4 +303,4 @@ def build_picture(data: Data, records, primary, alert) -> Picture:
         add(country(alert.get("country")), alert.get("alert_id"))
 
     return Picture(tuple(records), primary, company, verified, verified_name, declared,
-                   dob, dob_verified, countries, path, unrecognised, mentioned)
+                   dob, dob_verified, countries, path, unrecognised, mentioned, unread_checks, unread_names)

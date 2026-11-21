@@ -61,10 +61,10 @@ Put `ANTHROPIC_API_KEY=...` in `.env` for live LLM output. Without it every LLM 
 ```sh
 make test                              # engine, server, models, agents
 python3 -m evals.run data/screening/dev    # robustness sweep
-.venv/bin/python -m evals.wording          # new wordings for every kind of text the engine reads
+.venv/bin/python -m evals.wording --round 2   # new wordings for every kind of text the engine reads (rounds 1 to 3)
 ```
 
-`evals/` rewrites the data in ways that keep its meaning (date formats, country codes, name order, odd spaces, malformed rows) and reports any decision that becomes less safe. Its findings are in [`evals/FINDINGS.md`](evals/FINDINGS.md); the faults it found are fixed, and the one left on purpose is explained in `system/README.md`. `evals/wording.py` asks a model for new sentence templates (placeholders only, never a development record), fills them with invented values and counts what the engine's patterns read wrongly: none of 1,266 after the fixes, 14 left unread.
+`evals/` rewrites the data in ways that keep its meaning (date formats, country codes, name order, odd spaces, malformed rows) and reports any decision that becomes less safe. Its findings are in [`evals/FINDINGS.md`](evals/FINDINGS.md); the faults it found are fixed, and the one left on purpose is explained in `system/README.md`. `evals/wording.py` asks a model for new sentence templates (placeholders only, never a development record), fills them with invented values and counts what the engine's patterns read wrongly: none of 3,765 over three rounds after the fixes, 100 left unread.
 
 ## Layout
 

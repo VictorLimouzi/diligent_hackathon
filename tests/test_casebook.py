@@ -188,6 +188,35 @@ class Extraction(unittest.TestCase):
                           "state-owned enterprise official in Pakistan during October.", "kowalski sofia")
         self.assertEqual((r["age"], r["date"]), (21, PDate(1977, 10)))
 
+    def test_wordings_from_the_harder_stress_rounds(self):
+        from casebook.extract import note_countries, note_is_approved
+        # Failed checks worded without any of the usual words.
+        for bad in ("Having been submitted on 2025-03-16, the identity evidence of JO BLOGGS, born 27 July 2003, "
+                    "was found wanting by Persona.",
+                    "ID check result: ✗ (JO BLOGGS, 16/10/1945, 2025-04-15)",
+                    "Unfortunately the attempt by JO BLOGGS on 2022-10-05 to verify identity, with date of birth "
+                    "May 9, 1986, was turned away.",
+                    "Heads up - JO BLOGGS got knocked back by Onfido on 2023-03-13. Birthday on form: January 11, 1961."):
+            self.assertFalse(note_is_approved(bad), bad)
+        # Names inside key=value, quoted, bracketed and labelled records.
+        for text_, name in (
+                ('event=identity_check result=approved subject="JO BLOGGS" dob=21 December 1996 country=Germany '
+                 'ts=2022-09-24', "JO BLOGGS"),
+                ("[2024-06-02] [Onfido] [APPROVED] JO BLOGGS / 08/09/1984 / Kenya", "JO BLOGGS"),
+                ("Result=PASS; name=JO BLOGGS; birth=23 July 1995; nationality=French; verified_on=2023-05-28", "JO BLOGGS"),
+                ("status:approved|who:JO BLOGGS|born:1978-04-22|where:Bangladesh|when:2023-07-11|by:Persona", "JO BLOGGS"),
+                ("Hi all, FYI JO BLOGGS is through ID verification as of 2023-07-15. They were born 13/12/1964; "
+                 "French passport.", "JO BLOGGS")):
+            self.assertEqual(parse_kyc_note(text_, "2023-01-01")["name"], name, text_)
+        # "b. unknown" followed by an age at a date: the date is not the birth date.
+        self.assertEqual(profile_birth_dates("Jo Bloggs (b. unknown) was, as of August 2005, 46 years old and "
+                                             "under formal investigation.")[0], [PDate(1958), PDate(1959)])
+        self.assertEqual(profile_birth_dates("Jo Bloggs (b. unknown) was 47 on July 2014 release.")[0],
+                         [PDate(1966), PDate(1967)])
+        # A country in a negated clause is not a place lived.
+        self.assertEqual(note_countries("For the record, no UK ties during 2013–2021; customer was domiciled "
+                                        "and working in Brazil."), (["Brazil"], ["United Kingdom"]))
+
     def test_profile_birth(self):
         self.assertEqual(profile_birth_dates("Christian Zaum was born on 30 June 1969.")[0], [PDate(1969, 6, 30)])
         self.assertEqual(profile_birth_dates("The age of Tomasz Drozd was 38 when he was questioned in "
@@ -466,6 +495,23 @@ class EdgeCases(unittest.TestCase):
             person("CUS-J1", "Peter Novak", "1970-01-01", "Czechia", "+420 1"),      # joint holders
             person("CUS-J2", "Petra Novak", "1972-02-02", "Czechia", "+420 2"),
             person("CUS-K1", "Yusuf Demir", "1988-08-08", "Turkey", "+90 1"),
+            # The record's birth date is wrong; the identity-check note has the verified one.
+            person("CUS-N1", "Lars Holm", "1970-01-01", "Norway", "+47 31"),
+            person("CUS-N2", "Erik Dahl", "1970-01-01", "Norway", "+47 32"),
+            person("CUS-N3", "Ola Berg", "1980-02-02", "Norway", "+47 33"),
+        ]
+        notes = [
+            {"note_id": "NOTE-N1", "requester_email": "cus-n1@x.example", "created_at": "2023-02-19", "channel": "kyc",
+             "text": "Sumsub completed identity verification for LARS HOLM, born March 5, 1985, using a "
+                     "passport issued in Norway on 2023-02-19."},
+            # Approved, but the birth date is not in the text.
+            {"note_id": "NOTE-N2", "requester_email": "cus-n2@x.example", "created_at": "2023-02-19", "channel": "kyc",
+             "text": "Sumsub completed identity verification for ERIK DAHL (date of birth as on the attached "
+                     "scan) using a passport issued in Norway on 2023-02-19."},
+            # A failed check is not evidence, but its document names a country.
+            {"note_id": "NOTE-N3", "requester_email": "cus-n3@x.example", "created_at": "2023-02-19", "channel": "kyc",
+             "text": "Veriff rejected the identity check for OLA BERG, born 2 February 1980, who presented a "
+                     "passport issued in Chile on 2023-02-19."},
         ]
         accounts = [{"account_id": "ACC-" + c["record_id"][4:], "customer_id": c["record_id"],
                      "login_handle": c["record_id"].lower().replace("-", "")}
@@ -520,6 +566,10 @@ class EdgeCases(unittest.TestCase):
                 profile_notes="Name: Demir, Yusuf\nDOB: 3/25/1988\nSex: M"),
             hit("H-K-NUMERIC-AMBIGUOUS", "Demir, Yusuf", countries=["Turkey"],
                 profile_notes="Name: Demir, Yusuf\nDOB: 3/5/1988\nSex: M"),
+            hit("H-N1", "Holm, Lars", countries=["Norway"], dobs=["1985-03-05"]),
+            hit("H-N2", "Dahl, Erik", countries=["Norway"], dobs=["1985-03-05"]),
+            hit("H-N3", "Berg, Ola", countries=["Chile"]),
+            hit("H-N3-PERU", "Berg, Ola", countries=["Peru"]),
         ]
         alerts = [
             alert("A-D", "Sara Lindqvist", ["H-D-DK", "H-D-SAME"], account_ref="ACC-D1"),
@@ -533,12 +583,15 @@ class EdgeCases(unittest.TestCase):
             alert("A-K", "Yusuf Demir", [h["hit_id"] for h in hits if h["hit_id"].startswith("H-K")],
                   login_handle="cusk1"),
             alert("A-BADLINK", "Yusuf Demir", ["H-K-CYR"], account_ref="ACC-NOPE"),
+            alert("A-N1", "Lars Holm", ["H-N1"], login_handle="cusn1"),
+            alert("A-N2", "Erik Dahl", ["H-N2"], login_handle="cusn2"),
+            alert("A-N3", "Ola Berg", ["H-N3", "H-N3-PERU"], login_handle="cusn3"),
             alert("A-NOHITS", "Yusuf Demir", [], login_handle="cusk1"),
             alert("A-GHOST", "Yusuf Demir", ["H-DOES-NOT-EXIST"], login_handle="cusk1"),
         ]
         cls.tmp = tempfile.TemporaryDirectory()
         for name, rows in [("customers", customers), ("accounts", accounts), ("onboarding", onboarding),
-                           ("kyc_checks", checks), ("hits", hits), ("alerts", alerts), ("notes", []),
+                           ("kyc_checks", checks), ("hits", hits), ("alerts", alerts), ("notes", notes),
                            ("search_results", [])]:
             write(cls.tmp.name, name, rows)
         cls.data = Data(cls.tmp.name)
@@ -619,6 +672,18 @@ class EdgeCases(unittest.TestCase):
         self.assertEqual(self.got("A-K", "H-K-NUMERIC"), ("DIFFERENT_ENTITY", "DOB_MISMATCH"))
         # 3/5/1988 could be March or May: only the year is used, and it agrees.
         self.assertEqual(self.got("A-K", "H-K-NUMERIC-AMBIGUOUS")[0], "SAME_ENTITY")
+
+    def test_identity_check_notes_that_cannot_be_relied_on(self):
+        # Verified beats declared: the note's 1985 date is used, not the record's 1970.
+        r = self.results[("A-N1", "H-N1")]
+        self.assertEqual((r["decision"], r["evidence"][0]), ("SAME_ENTITY", "NOTE-N1"))
+        # The approved note's birth date could not be read, so the record's date must not clear.
+        r = self.results[("A-N2", "H-N2")]
+        self.assertEqual((r["decision"], r["reason_code"]), ("REVIEW", "INSUFFICIENT_DATA"))
+        self.assertIn("NOTE-N2", r["reason"])
+        # A failed check is not evidence, but the country on its document stops a location clear.
+        self.assertEqual(self.got("A-N3", "H-N3"), ("REVIEW", "INSUFFICIENT_DATA"))
+        self.assertEqual(self.got("A-N3", "H-N3-PERU"), ("DIFFERENT_ENTITY", "LOCATION_MISMATCH"))
 
     def test_alert_without_hits_and_hit_that_does_not_exist(self):
         self.assertFalse([k for k in self.results if k[0] == "A-NOHITS"])

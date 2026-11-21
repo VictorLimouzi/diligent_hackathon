@@ -81,6 +81,12 @@ def test_search(client):
     out = client.get("/api/search/customers", params={"q": "markus muller"}).json()
     assert out and {"record_id", "full_name", "dob", "country", "score"} <= set(out[0])
     assert client.get("/api/search/customers", params={"q": "  "}).json() == []
+    # From an alert, the screened details order equal names; an unknown alert changes nothing.
+    plain = client.get("/api/search/customers", params={"q": "markus muller", "alert_id": "NOPE"}).json()
+    assert plain == out
+    alert = client.get("/api/alerts").json()[0]["alert_id"]
+    scoped = client.get("/api/search/customers", params={"q": "markus muller", "alert_id": alert}).json()
+    assert {r["score"] for r in scoped} == {r["score"] for r in out}
 
 
 def test_streams_end_properly(client):

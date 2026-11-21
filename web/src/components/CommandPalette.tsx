@@ -1,13 +1,16 @@
 import { useDeferredValue, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import type { AlertRow, CustomerMatch } from "../api/types";
 import { useRequest } from "../api/useRequest";
 import { ErrorMessage, Id, Loading, Modal, pct, Rich } from "./common";
 export function CommandPalette({ close }: { close: () => void }) {
   const [query, setQuery] = useState("");
   const q = useDeferredValue(query.trim());
+  // Opened from a case: the alert's screened details put the right namesake first.
+  const alertId = useLocation().pathname.match(/^\/alerts\/([^/]+)/)?.[1];
+  const from = alertId ? `&alert_id=${encodeURIComponent(alertId)}` : "";
   const customers = useRequest<CustomerMatch[]>(
-    q ? `/search/customers?q=${encodeURIComponent(q)}&k=10` : null,
+    q ? `/search/customers?q=${encodeURIComponent(q)}&k=10${from}` : null,
   );
   const alerts = useRequest<AlertRow[]>(
     q ? `/alerts?q=${encodeURIComponent(q)}` : null,

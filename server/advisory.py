@@ -77,13 +77,21 @@ def queue_summary(state, groups):
 _search = None
 
 
-def search_customers(state, q, k=10):
-    """Fuzzy customer search: the ML retrieval index when present, else a token scan."""
+def search_customers(state, q, k=10, alert_id=None):
+    """Fuzzy customer search: the ML retrieval index when present, else a token scan.
+
+    When the search starts from an alert, the alert's screened date of birth, country
+    and city order records whose names score the same, so the right one of several
+    namesakes comes first.
+    """
     global _search
     try:
         from ml.search import CustomerSearch
         if _search is None:
             _search = CustomerSearch(state.data)
+        alert = next((a for a in state.data.alerts if a.get("alert_id") == alert_id), None) if alert_id else None
+        if alert:
+            return _search.query(q, k, dob=alert.get("dob"), country=alert.get("country"), city=alert.get("city"))
         return _search.query(q, k)
     except ImportError:
         toks = [t for t in re.findall(r"\w+", q.lower()) if len(t) > 1]

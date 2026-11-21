@@ -11,7 +11,11 @@ from .dates import MONTH_RE, MONTHS as MONTHS_BY_NAME, PDate, find_dates, parse_
 
 # ---------------------------------------------------------------- KYC notes
 
-_CAPS_STOP = {"DOB", "ID", "KYC", "UK", "US", "USA", "UAE", "EU", "D.O.B", "D.O.B.", "NIN", "OK", "PEP", "AML"}
+_CAPS_STOP = {"DOB", "ID", "KYC", "UK", "US", "USA", "UAE", "EU", "D.O.B", "D.O.B.", "NIN", "OK", "PEP", "AML",
+              # labels and results that records write in capitals beside the name
+              "APPROVED", "APPROVAL", "PASS", "PASSED", "FAIL", "FAILED", "REJECTED", "VERIFIED",
+              "VERIFICATION", "CONFIRMED", "CLEARED", "COMPLETE", "COMPLETED", "SUCCESS", "RESULT", "STATUS",
+              "NAME", "SUBJECT", "CHECK", "DATE", "DOC", "TRUE", "FALSE", "YES", "FYI", "URGENT", "NOTE"}
 _CAPS_TOKEN = re.compile(r"[^\W\d_a-z]+(?:[-'’.][^\W\d_a-z]+)*\.?", re.UNICODE)
 # "verified with no issues" is good news: such phrases are set aside before looking for bad news.
 _NO_PROBLEM = re.compile(
@@ -24,7 +28,12 @@ _NOT_APPROVED = re.compile(
     r"mismatch\w*|discrepan\w*|inconclusive|suspect\w*|suspicious|fraud\w*|forg\w*|tamper\w*|counterfeit|"
     r"fake|bounc\w*|negative|unable|cannot|unreadable|illegible|blurr\w*|problem\w*|error\w*|"
     r"block\w*|halt\w*|flagged|retry|resubmit\w*|re-?attempt\w*|timed\s+out|out\s+of\s+date|"
-    r"not|no|never|nor|neither|without)\b|n['’]t\b",
+    r"wanting|lacking|missing|insufficient\w*|inadequate|unsatisfactory|unacceptable|adverse|"
+    r"turned\s+(?:away|down|back)|knocked\s+back|kicked\s+back|sent\s+back|thrown\s+out|"
+    r"short\s+of|fell\s+short|shortfall|awaiting|outstanding|on\s+hold|quer(?:y|ied)|escalat\w*|"
+    r"doubt\w*|dubious|questionable|unresolved|stalled|dropped|aborted|terminated|unclear|"
+    r"wrong\w*|bad|nope|nok|ko|"
+    r"not|no|never|nor|neither|without)\b|n['’]t\b|[✗✘❌✖⛔]|\bresult\s*[:=]\s*x\b",
     re.I,
 )
 
@@ -45,7 +54,8 @@ def _caps_name(text):
     run = []
     runs = []
     pos = 0
-    for m in re.finditer(r"[^\s/|]+", text):
+    text = re.sub(r"(?<=[a-z_]):(?=\S)", ": ", text)   # who:JANE DOE -> who: JANE DOE
+    for m in re.finditer(r"[^\s/|=\"“”\[\]]+", text):
         tok = re.sub(r"['’][sS]$", "", m.group(0))
         core = tok.strip(",;:()[]\"“”—–-")
         if len(core) > 2:
@@ -153,6 +163,10 @@ def lived_countries(text):
     return note_countries(text)[0]
 
 
+_CLAUSE = re.compile(r";|\n|(?<=[a-z0-9)])\.\s+(?=[A-Z])|\bbut\b|\bhowever\b|\bwhereas\b|\bthough\b", re.I)
+_NEGATED = re.compile(r"\b(?:no|not|never|without|nor|neither|none)\b|n['’]t\b", re.I)
+
+
 def note_countries(text):
     """Countries a support note names, as (lived, mentioned).
 
@@ -163,10 +177,17 @@ def note_countries(text):
     """
     if not text:
         return [], []
-    found = countries_in_text(text, loose=True)
-    if not found:
+    if not countries_in_text(text, loose=True):
         return [], []
-    return (found, []) if _LIVED.search(text) else ([], found)
+    said_lived = _LIVED.search(text) is not None
+    lived, named = [], []
+    for clause in _CLAUSE.split(text):
+        negated = _NEGATED.search(clause) is not None    # "no UK ties during 2013-2021"
+        for c in countries_in_text(clause, loose=True):
+            bucket = lived if (said_lived and not negated) else named
+            if c not in bucket:
+                bucket.append(c)
+    return lived, [c for c in named if c not in lived]
 
 
 # ------------------------------------------------------------ ages at dates
@@ -254,6 +275,25 @@ _REPORT = re.compile(
 )
 
 
+_BIRTH_GAP_STOP = re.compile(
+    r"unknown|not\s+known|n/?a\b|unavailable|unrecorded|undisclosed|unconfirmed|\?|\)|"
+    r"\b(?:age|aged|years?|yrs?|old|as\s+of|when|while|until|since|before|after|then|but|and\s+was)\b", re.I)
+
+
+# The birth date is said to be unknown, or the sentence gives an age: its date is not the birth date.
+_NOT_A_BIRTH_DATE = re.compile(
+    r"\b(?:born|birth\w*|DOB|D\.O\.B\.?|b\.)\W{0,3}(?:date\W{0,2})?(?:is\s+|was\s+)?"
+    r"(?:unknown|not\s+known|n/?a\b|unavailable|unrecorded|undisclosed|unconfirmed|\?)"
+    r"|\b(?:aged?|years?\s+old|yrs?\.?\s+old|y/o|yo)\b|\bwas\s+\d{2}\s+(?:on|in|at|when|by|during)\b", re.I)
+
+
+def _belongs_to_birth_word(gap):
+    """`gap` is the text between a birth word and the first date after it. The date is
+    the birth date only if nothing in between says otherwise: "b. unknown) was, as of
+    August 2005, 46" dates the age, not the birth."""
+    return len(gap) <= 60 and not _BIRTH_GAP_STOP.search(gap[len(re.match(r"\S*", gap).group(0)):])
+
+
 def first_paragraph(notes):
     if not notes:
         return ""
@@ -274,16 +314,16 @@ def profile_birth_dates(notes):
     for m in _BORN.finditer(para):
         seg = m.group(0)
         found = find_dates(seg, day_first=None)
-        if found:
+        if found and _belongs_to_birth_word(seg[:found[0][1]]):
             return [found[0][0]], _sentence_around(para, m.start())
         y = re.search(r"\b(1[89]\d\d|20\d\d)\b", seg)   # also the year of a date that cannot be read whole
-        if y:
+        if y and not found and _belongs_to_birth_word(seg[:y.start()]):
             return [PDate(int(y.group(1)))], _sentence_around(para, m.start())
     short = len(para) <= 240
     # 2. A short paragraph about a birth with exactly one date in it, wherever the date sits:
     #    "1980 is the recorded birth date of …". Not used when the paragraph also speaks of
     #    some other event, whose date could be the one found.
-    if short and _BIRTH_WORD.search(para) and not _EVENT_WORD.search(para):
+    if short and _BIRTH_WORD.search(para) and not _EVENT_WORD.search(para) and not _NOT_A_BIRTH_DATE.search(para):
         found = find_dates(para, day_first=None)
         spans = [(s_, e_) for _, s_, e_ in found]
         dates = []

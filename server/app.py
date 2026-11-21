@@ -112,8 +112,8 @@ def record(record_id: str):
 
 
 @app.get("/api/search/customers")
-def search_customers(q: str, k: int = Query(10, ge=1, le=50)):
-    return advisory.search_customers(get_state(), q, k) if q.strip() else []
+def search_customers(q: str, k: int = Query(10, ge=1, le=50), alert_id: Optional[str] = None):
+    return advisory.search_customers(get_state(), q, k, alert_id) if q.strip() else []
 
 
 @app.get("/api/qa")
