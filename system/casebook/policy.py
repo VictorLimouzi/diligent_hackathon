@@ -6,7 +6,7 @@ from .customer import Picture
 from .dates import PDate, dob_agrees, dob_contradicts, max_age_at
 from .hit import HitFacts
 from .load import Data
-from .names import is_latin, names_agree
+from .names import is_latin, names_agree, parts_match
 
 DIFFERENT, SAME, REVIEW = "DIFFERENT_ENTITY", "SAME_ENTITY", "REVIEW"
 
@@ -90,6 +90,17 @@ def _name_check(data: Data, pic: Picture, hit: HitFacts) -> Check:
             # the name's source only when the verified name clears the hit.
             return Check("name", "agree",
                          f"The customer's verified name {v.value} ({v.source}) agrees with the hit's name {n}.")
+        if pic.verified and pic.verified.get("kind") == "note":
+            # A name read from free text can be a misread (a label or the provider's name in
+            # capitals). In the data a verified name always shares a part with a name on
+            # record; one that shares none, or is a single word, is not relied on to clear.
+            vparts = data.parts(v.value, company)
+            on_record = [data.parts(f.value, company) for f in pic.declared_names if str(f.source).startswith("CUS-")]
+            shares = any(parts_match(a, b, data.rules) for rec in on_record for a in vparts for b in rec)
+            if len(vparts) < 2 or (on_record and not shares):
+                return Check("name", "unknown",
+                             f"The name {v.value} read from note {v.source} is a single word or shares nothing with "
+                             f"the names on record, so it may be a misread and cannot clear the hit.", [v.source])
         latin = is_latin(data.parts(v.value, company))
         if not any(is_latin(p) == latin for _, p in hit_parts):
             # Every name the hit gives is in another script: nothing was compared, so nothing differs.

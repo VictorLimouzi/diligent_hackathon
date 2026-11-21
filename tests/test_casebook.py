@@ -499,6 +499,7 @@ class EdgeCases(unittest.TestCase):
             person("CUS-N1", "Lars Holm", "1970-01-01", "Norway", "+47 31"),
             person("CUS-N2", "Erik Dahl", "1970-01-01", "Norway", "+47 32"),
             person("CUS-N3", "Ola Berg", "1980-02-02", "Norway", "+47 33"),
+            person("CUS-N4", "Nora Lund", "1990-03-03", "Norway", "+47 34"),
         ]
         notes = [
             {"note_id": "NOTE-N1", "requester_email": "cus-n1@x.example", "created_at": "2023-02-19", "channel": "kyc",
@@ -512,6 +513,10 @@ class EdgeCases(unittest.TestCase):
             {"note_id": "NOTE-N3", "requester_email": "cus-n3@x.example", "created_at": "2023-02-19", "channel": "kyc",
              "text": "Veriff rejected the identity check for OLA BERG, born 2 February 1980, who presented a "
                      "passport issued in Chile on 2023-02-19."},
+            # The customer's name is in ordinary case; the only words in capitals are a heading.
+            {"note_id": "NOTE-N4", "requester_email": "cus-n4@x.example", "created_at": "2023-02-19", "channel": "kyc",
+             "text": "ONFIDO REPORT: identity of Nora Lund confirmed, born 3 March 1990, passport issued in "
+                     "Norway on 2023-02-19."},
         ]
         accounts = [{"account_id": "ACC-" + c["record_id"][4:], "customer_id": c["record_id"],
                      "login_handle": c["record_id"].lower().replace("-", "")}
@@ -570,6 +575,7 @@ class EdgeCases(unittest.TestCase):
             hit("H-N2", "Dahl, Erik", countries=["Norway"], dobs=["1985-03-05"]),
             hit("H-N3", "Berg, Ola", countries=["Chile"]),
             hit("H-N3-PERU", "Berg, Ola", countries=["Peru"]),
+            hit("H-N4", "Lund, Nora", countries=["Norway"], dobs=["1990-03-03"]),
         ]
         alerts = [
             alert("A-D", "Sara Lindqvist", ["H-D-DK", "H-D-SAME"], account_ref="ACC-D1"),
@@ -586,6 +592,7 @@ class EdgeCases(unittest.TestCase):
             alert("A-N1", "Lars Holm", ["H-N1"], login_handle="cusn1"),
             alert("A-N2", "Erik Dahl", ["H-N2"], login_handle="cusn2"),
             alert("A-N3", "Ola Berg", ["H-N3", "H-N3-PERU"], login_handle="cusn3"),
+            alert("A-N4", "Nora Lund", ["H-N4"], login_handle="cusn4"),
             alert("A-NOHITS", "Yusuf Demir", [], login_handle="cusk1"),
             alert("A-GHOST", "Yusuf Demir", ["H-DOES-NOT-EXIST"], login_handle="cusk1"),
         ]
@@ -684,6 +691,10 @@ class EdgeCases(unittest.TestCase):
         # A failed check is not evidence, but the country on its document stops a location clear.
         self.assertEqual(self.got("A-N3", "H-N3"), ("REVIEW", "INSUFFICIENT_DATA"))
         self.assertEqual(self.got("A-N3", "H-N3-PERU"), ("DIFFERENT_ENTITY", "LOCATION_MISMATCH"))
+        # A heading in capitals was read as the verified name. It shares nothing with the name
+        # on record, so it must not clear the hit as a name mismatch.
+        r = self.results[("A-N4", "H-N4")]
+        self.assertNotEqual(r["decision"], "DIFFERENT_ENTITY")
 
     def test_alert_without_hits_and_hit_that_does_not_exist(self):
         self.assertFalse([k for k in self.results if k[0] == "A-NOHITS"])
@@ -700,7 +711,7 @@ class Golden(unittest.TestCase):
     FOLDER = os.environ.get("CASEBOOK_DATA") or next(
         (p for p in (os.path.join(_DATA, "screening", "dev"), os.path.join(_DATA, "dev_from_workbook"))
          if os.path.isdir(p)), os.path.join(_DATA, "screening", "dev"))
-    SHA256 = "9ad9a44da85c72ecb0e7af9450d96f5fc307284952f702a8eafbd6e206d6354d"
+    SHA256 = "abdcea7f0653b2afca8a948e6345ddd017a08ecc28a4f289332b5e3578bfd920"
 
     def test_decisions_unchanged(self):
         if not os.path.isdir(self.FOLDER):
