@@ -4,6 +4,7 @@ Casebook applies Diligent's screening SOP as code. For each watchlist hit it wor
 
 ```sh
 system/run <data folder> <output file>
+system/explain <data folder> <hit id>     # optional: the whole trail behind one decision
 ```
 
 It reads only the given folder and uses the Python 3 standard library (3.8 or later). It calls no language model and no network.
@@ -67,7 +68,68 @@ Every fact carries the ID of the record it came from (`CUS-`, `KYC-`, `NOTE-`, `
 - a confirmation cites the date-of-birth source, the records that share a country with the hit, and any search result used for the hit's birth date;
 - a review cites the records behind whatever did agree.
 
-`reason` is those checks' sentences plus the rule applied, two to four sentences. When several reason codes apply, the one resting on the most reliable source is given first: type, date of birth, verified name, time, death, then country.
+`reason` is those checks' sentences plus the rule applied, two to four sentences (see "How to read a decision" below). When several reason codes apply, the one resting on the most reliable source is given first: type, date of birth, verified name, time, death, then country.
+
+## How to read a decision
+
+Every decision is meant to be checked by a person without opening the code. The `reason` field is two to four sentences in a fixed order: the facts that decided the hit, each with the record it came from; why they agree or contradict; and the rule applied.
+
+| Reason code | What the reason tells you |
+|---|---|
+| `DOB_MISMATCH` | The customer's date and its record, every date the hit gives and where they come from, and how they differ: the same year with another month or day, or more than a year away. |
+| `NAME_MISMATCH_VERIFIED` | The verified legal name and its record, how many names the hit gives, and how close the nearest came: "only Sargsyan matches, and names agree on two matching parts or on every part of the shorter name". |
+| `LOCATION_MISMATCH` | Each side's countries with their records, and why the exception does not save the hit. |
+| `TEMPORAL_IMPOSSIBILITY`, `DECEASED`, `ENTITY_TYPE_MISMATCH` | The two dates, or the two types, that cannot both hold. |
+| `NAME_DOB_LOCATION_MATCH`, `NAME_DOB_MATCH`, `NAME_LOCATION_MATCH` | What agrees, and for names not written alike, which parts match: "2 parts match (Markus/Marcus, Muller/Miller)". |
+| `INSUFFICIENT_DATA` | What agrees, what is missing, and what would settle it. |
+| `AMBIGUOUS_CUSTOMER_RECORD` | Each customer who fits the alert and what their decision would be. |
+
+**The rule people find surprising.** A hit whose name matches the customer's is still cleared when no country is shared, unless the date of birth also agrees. The policy says so ("a country difference does not clear a hit whose name and date of birth agree"), and the practice labels clear such hits. So a country clear always says which half failed, for example: "the exception for a hit whose name and date of birth both agree does not apply because the name agrees but the hit gives no date of birth to agree with".
+
+**A review says what would end it.** The engine re-runs the policy with the missing fact filled in and reports the result: "the hit's date of birth would settle it, since 1989-02-07 (the customer's) would confirm it and a date more than a year away would clear it". An analyst knows what to ask for.
+
+**The whole trail for one hit.** `system/explain <data folder> <hit id>` prints everything behind a decision. On an invented case from the tests:
+
+```
+H-SEARCH   alert A-6, screened as 'Kofi Mensah'
+
+   DECISION        SAME_ENTITY / NAME_DOB_LOCATION_MATCH   (customer record: CUS-6)
+   EVIDENCE        CUS-6, SR-HIT
+
+1. How the customer was found
+   - email cus-6@x.example -> customers -> CUS-6
+
+2. The hit (the listed party)
+   Names           Mensah, Kofi
+   Birth dates     1989, 1990   from the search results (SR-HIT)
+   Countries       Ghana
+   Search results for the hit's name (most are about other people):
+     SR-NAMESAKE  set aside: in Norway, not a country tied to the hit
+         "Kofi Mensah, 61, the subject of enforcement action in Norway, appeared in a May 2020 notice."
+     SR-OTHERJOB  set aside: not described as "subject of enforcement action"
+         "Kofi Mensah, 70, a taxi driver in Ghana, won a community award in May 2020."
+     SR-HIT  about the hit
+         "Kofi Mensah, 30, the subject of enforcement action in Ghana, appeared in a May 2020 notice."
+
+3. The customer
+   Verified name   none: no approved identity check gives a name
+   Names on file   Kofi Mensah (CUS-6); Kofi Mensah (A-6)
+   Date of birth   1990-04-04   (CUS-6, on record, not verified)
+   Countries       Ghana (CUS-6)
+
+4. The checks   ->   SAME_ENTITY / NAME_DOB_LOCATION_MATCH
+   Name                   AGREES         The customer's name "Kofi Mensah" (CUS-6, not verified by an
+                                         identity check) agrees with the hit's name "Mensah, Kofi".
+   Date of birth          AGREES         The customer's date of birth 1990-04-04 (CUS-6) agrees with the
+                                         birth dates in search results about the hit (1989, 1990).
+   Country                AGREES         Both the customer and the hit are linked to Ghana (CUS-6).
+   Age at earliest report CANNOT COMPARE No dated report to set against the customer's age.
+   Date of death          CANNOT COMPARE The profile gives no date of death.
+```
+
+(Shortened: the full output also prints the reason, the rule applied and, for a review, what would settle it.) The analyst app shows the same checks and sentences in its comparison table.
+
+Because the system is rules and not a model, the explanation is the decision: the sentence you read is produced by the same check that decided the hit, so it cannot drift from what the system did. A test reads all 819 development reasons and fails if one is not two to four sentences, leaves a value unfilled, or names a record that does not belong to that hit.
 
 ## Same result every run
 
@@ -114,11 +176,19 @@ We chose this because the SOP is precise enough to implement exactly, the worst 
 
 ## Three cases
 
+Each case ends with the reason as the system writes it in `output/dev.jsonl` (names left out here).
+
 **A clear mismatch: `H-622EDD` (alert `A-AE9222`) → `DIFFERENT_ENTITY`, `DOB_MISMATCH`.**
 The alert's login handle leads to `CUS-270502`. No provider check exists, but onboarding note `NOTE-CA9BBC` records an approved check with date of birth 1979-04-17. The hit has no `dobs` and no birth sentence in its notes, so search results for its name are read: most are namesakes, and `SR-A88751` is the one describing the same kind of listing in the hit's country. It gives an age at a date, so the hit was born in 1972 or 1973. Both years are more than a year from 1979, so every birth date the hit gives is contradicted. Evidence: `NOTE-CA9BBC`, `SR-A88751`.
+
+> *The customer's date of birth is 1979-04-17 (NOTE-CA9BBC), which contradicts the birth dates in search results about the hit (1972, 1973): each more than a year away. Every date the hit gives is contradicted, so the hit is a different entity.*
 
 **A match: `H-0181BD` (alert `A-957E63`) → `SAME_ENTITY`, `NAME_DOB_LOCATION_MATCH`.**
 The account reference leads to two joint holders; the screened name and date of birth fit `CUS-775419`. `CUS-138588` shares that record's phone and full date of birth, so both are one person. An onboarding note (`NOTE-CB2CB8`) verifies the name and a date of birth of 1985-09-12. The hit's birth years come from `SR-590704` (1985 or 1986), both sides are tied to Brazil, the verified name agrees with the hit's, and nothing contradicts. Evidence: `NOTE-CB2CB8`, `SR-590704`, `CUS-138588`, `CUS-775419`.
 
+> *The customer's date of birth 1985-09-12 (NOTE-CB2CB8) agrees with the birth dates in search results about the hit (1985, 1986). Both the customer and the hit are linked to Brazil (CUS-138588, CUS-775419, NOTE-CB2CB8). The customer's verified name "…" (NOTE-CB2CB8) agrees with the hit's name "…": 3 parts match. Nothing in the customer's records contradicts the hit, so it is confirmed as the customer.*
+
 **Left for review: `H-ADF453` (alert `A-0DF328`) → `REVIEW`, `INSUFFICIENT_DATA`.**
 The login handle leads to `CUS-375608`, whose latest approved check `KYC-A932A4` verifies the legal name and a date of birth of 1979-08-14. The hit was born in 1979 or 1980: the names agree (one part is a listed variant, the other is one edit away) and the dates agree. But the customer is tied only to Germany and the hit only to the United States. The SOP says a country difference does not clear a hit whose name and date of birth agree, and a confirmation needs nothing to contradict it, so a person decides. Evidence: `KYC-A932A4`, `CUS-375608`.
+
+> *The customer's date of birth 1979-08-14 (KYC-A932A4) agrees with the birth dates listed on the hit (1979, 1980). The customer's verified name "…" (KYC-A932A4) agrees with the hit's name "…": 2 parts match. The customer is linked only to Germany (CUS-375608, KYC-A932A4) but the hit is linked only to the United States. A country difference does not clear a hit whose name and date of birth agree, so a person must review it; a tie between the customer and the United States would confirm it.*

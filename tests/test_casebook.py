@@ -450,6 +450,21 @@ class Policy(unittest.TestCase):
     def test_hit_that_only_names_its_alert_is_still_decided(self):
         self.assertEqual(self.got("A-5", "H-UNLISTED"), ("DIFFERENT_ENTITY", "NAME_MISMATCH_VERIFIED"))
 
+    def test_explain_prints_the_trail_for_one_hit(self):
+        import subprocess
+        explain = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "system", "explain")
+        run = subprocess.run([sys.executable, explain, self.tmp.name, "H-SEARCH"], capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        for expected in ("SAME_ENTITY / NAME_DOB_LOCATION_MATCH", "How the customer was found", "SR-NAMESAKE  set aside",
+                         "SR-HIT  about the hit", "Date of birth          AGREES"):
+            self.assertIn(expected, run.stdout)
+        # a review also says what would settle it; an unknown hit is one line, not a traceback
+        run = subprocess.run([sys.executable, explain, self.tmp.name, "H-PLACE"], capture_output=True, text=True)
+        self.assertIn("What would settle it", run.stdout)
+        run = subprocess.run([sys.executable, explain, self.tmp.name, "H-NOPE"], capture_output=True, text=True)
+        self.assertEqual((run.returncode, run.stdout), (1, ""))
+        self.assertNotIn("Traceback", run.stderr)
+
     def test_no_record_found(self):
         r = self.results[("A-0", "H-NODATA")]
         self.assertIsNone(r["customer_record_id"])

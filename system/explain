@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Explain one decision: everything the system read, compared and concluded for a hit.
+
+Usage: system/explain <data folder> <hit id>
+
+Prints how the customer was found, the customer's facts and the hit's facts with
+the record each came from, the six checks, the decision, and for a review what
+would settle it. It runs the same engine as system/run and decides nothing new.
+"""
+import os
+import sys
+import textwrap
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, HERE)
+
+from casebook.engine import decide_alert  # noqa: E402
+from casebook.load import Data  # noqa: E402
+
+WIDTH = 100
+OUTCOME = {"agree": "AGREES", "contradict": "CONTRADICTS", "unknown": "CANNOT COMPARE"}
+CHECKS = {"type": "Type", "name": "Name", "dob": "Date of birth", "location": "Country",
+          "time": "Age at earliest report", "death": "Date of death"}
+
+
+def para(text, indent=3, first=None):
+    lead = " " * indent if first is None else first
+    return textwrap.fill(str(text), WIDTH, initial_indent=lead, subsequent_indent=" " * len(lead))
+
+
+def row(label, value, note=""):
+    out = para(value, first=f"   {label:<16}")
+    return out + (f"\n{para(note, first=' ' * 19)}" if note else "")
+
+
+def find_alert(data, hit_id):
+    for alert in data.alerts:
+        if hit_id in data.alert_hit_ids(alert):
+            return alert
+    return None
+
+
+def explain(data, hit_id):
+    alert = find_alert(data, hit_id)
+    if alert is None:
+        return None
+    result = next(r for r in decide_alert(data, alert) if r["hit_id"] == hit_id)
+    out = [f"{hit_id}   alert {result['alert_id']}, screened as {alert.get('customer_name')!r}"
+           f"{', born ' + str(alert['dob']) if alert.get('dob') else ''}"
+           f"{', ' + str(alert['country']) if alert.get('country') else ''}", ""]
+    out.append(row("DECISION", f"{result['decision']} / {result['reason_code']}"
+                               f"   (customer record: {result['customer_record_id']})"))
+    out.append(row("REASON", result["reason"]))
+    out.append(row("EVIDENCE", ", ".join(result["evidence"]) or "none"))
+    trace = result.get("trace")
+    if not trace:
+        return "\n".join(out)
+
+    out += ["", "1. How the customer was found"]
+    for step in trace["resolution"] or ["no customer record fits the alert"]:
+        out.append(para(step, first="   - "))
+
+    hit = trace["hit"]
+    out += ["", "2. The hit (the listed party)"]
+    names = hit["names"]
+    out.append(row("Names", "; ".join(names[:6]) + (f"; and {len(names) - 6} more" if len(names) > 6 else "")))
+    if hit["dobs"]:
+        origin = hit["dob_origin"] + (f" ({', '.join(hit['dob_sources'])})" if hit["dob_sources"] else "")
+        out.append(row("Birth dates", f"{', '.join(hit['dobs'])}   from the {origin}",
+                       f'read from: "{hit["dob_quote"]}"' if hit.get("dob_quote") else ""))
+    else:
+        out.append(row("Birth dates", "none in the dobs field, the profile notes or search results about the hit"))
+    out.append(row("Countries", ", ".join(hit["countries"]) or "none"))
+    if hit["earliest_report"]:
+        out.append(row("Earliest report", hit["earliest_report"],
+                       f'"{hit["earliest_report_line"]}"' if hit.get("earliest_report_line") else ""))
+    if hit["death"]:
+        out.append(row("Date of death", hit["death"]))
+    if hit["search_considered"]:
+        out.append("   Search results for the hit's name (most are about other people):")
+        for s in hit["search_considered"]:
+            verdict = "about the hit" if s["about_hit"] else f"set aside: {s.get('why_not')}"
+            out.append(para(f"{s['result_id']}  {verdict}", first="     "))
+            out.append(para(f'"{s["snippet"]}"', first="         "))
+
+    several = len(trace["candidates"]) > 1
+    for n, cand in enumerate(trace["candidates"], 1):
+        c = cand["customer"]
+        head = f"3. The customer{f' (candidate {n} of ' + str(len(trace['candidates'])) + ')' if several else ''}"
+        out += ["", head]
+        out.append(row("Records", ", ".join(c["records"]) or "none found",
+                       "several records are one person: same phone and full date of birth, or same document number"
+                       if len(c["records"]) > 1 else ""))
+        out.append(row("Type", c["entity_type"] or "not stated"))
+        out.append(row("Verified name", f"{c['verified_name']}   ({c['verified_check']}, latest approved identity check)"
+                       if c["verified_name"] else "none: no approved identity check gives a name"))
+        declared = list(dict.fromkeys(f"{d['value']} ({d['source']})" for d in c["declared_names"]))
+        out.append(row("Names on file", "; ".join(declared) or "none"))
+        if c["dob"]:
+            kind = "verified" if c["dob_verified"] else "on record, not verified"
+            what = "Incorporated" if c["entity_type"] == "Company" else "Date of birth"
+            out.append(row(what, f"{c['dob']}   ({c['dob_source']}, {kind})"))
+        else:
+            out.append(row("Date of birth", "not known"))
+        countries = {}
+        for f in c["countries"]:
+            countries.setdefault(f["value"], []).append(f["source"])
+        out.append(row("Countries", "; ".join(f"{k} ({', '.join(v)})" for k, v in countries.items()) or "none"))
+
+        out += ["", f"4. The checks{f' for candidate {n}' if several else ''}"
+                    f"   ->   {cand['decision']} / {cand['reason_codes'][0]}"]
+        for check in cand["checks"]:
+            out.append(para(check["detail"], first=f"   {CHECKS.get(check['name'], check['name']):<23}"
+                                                   f"{OUTCOME[check['outcome']]:<15}"))
+
+    out += ["", "5. The rule applied"]
+    out.append(para("Clear only on a contradiction (type, date of birth, verified name, time, death, or no shared "
+                    "country unless name and date of birth both agree). Confirm a person only when name and date of "
+                    "birth agree and nothing contradicts; a company when name and country agree. Otherwise review."))
+    if result.get("counterfactuals"):
+        out += ["", "6. What would settle it"]
+        for cf in result["counterfactuals"]:
+            out.append(para(cf["question"], first="   - "))
+            for o in cf["outcomes"]:
+                out.append(para(f"if {o['if']}: {o['decision']} / {o['reason_code']}", first="       "))
+    return "\n".join(out)
+
+
+def main(argv):
+    if len(argv) != 3:
+        sys.stderr.write(__doc__)
+        return 2
+    try:
+        data = Data(argv[1])
+    except OSError as exc:
+        sys.stderr.write(f"error: cannot read the data folder {argv[1]} ({exc})\n")
+        return 1
+    text = explain(data, argv[2])
+    if text is None:
+        sys.stderr.write(f"error: no alert in {argv[1]} lists the hit {argv[2]}\n")
+        return 1
+    print(text)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -13,6 +13,7 @@ The repository has two parts:
 
 ```sh
 system/run <data folder> <output file>
+system/explain <data folder> <hit id>     # the whole trail behind one decision
 python3 data/screening/validate.py --data <data folder> --output <output file> --score <data folder>/practice_labels.jsonl
 ```
 
