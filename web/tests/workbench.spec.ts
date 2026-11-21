@@ -15,9 +15,9 @@ test("queue filters, blockers and keyboard navigation preserve server order", as
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/alerts\/A-DBA307$/);
   await page.getByRole("link", { name: "← Screening queue" }).click();
-  await page.getByLabel("Status", { exact: true }).selectOption("cleared");
+  await page.getByLabel(/^Status/).selectOption("cleared");
   await expect(rows).toHaveCount(2);
-  await page.getByLabel("Status", { exact: true }).selectOption("");
+  await page.getByLabel(/^Status/).selectOption("");
   await page.getByLabel("Practice labelled").check();
   await expect(rows).toHaveCount(4);
   await page.getByLabel("Practice labelled").uncheck();
@@ -92,7 +92,7 @@ test("deep link, source drawer, investigator, chat, note and analyst override", 
     .toBe("Edited case note with KYC-A932A4.");
   const review = page.locator(".review-panel");
   await review
-    .getByLabel("Decision", { exact: true })
+    .getByLabel(/^Decision/)
     .selectOption("SAME_ENTITY");
   await review.getByLabel("Reason code").selectOption("NAME_DOB_MATCH");
   await review

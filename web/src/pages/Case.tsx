@@ -119,6 +119,20 @@ export function ModelSignals({ hit }: { hit: Hit }) {
     </section>
   );
 }
+// The six checks behind a decision, in the order the engine runs them.
+const PATH_LABEL: Record<string, string> = {
+  type: "Type",
+  name: "Name",
+  dob: "Date of birth",
+  location: "Country",
+  time: "Age at earliest report",
+  death: "Date of death",
+};
+const PATH_OUTCOME: Record<string, [string, string]> = {
+  agree: ["✓", "Agrees"],
+  contradict: ["✕", "Contradicts"],
+  unknown: ["–", "Cannot compare"],
+};
 function HitCase({ hit, screenedAt }: { hit: Hit; screenedAt: string }) {
   const [candidateIndex, setCandidateIndex] = useState(0);
   const candidates = hit.trace?.candidates || [];
@@ -140,8 +154,29 @@ function HitCase({ hit, screenedAt }: { hit: Hit; screenedAt: string }) {
           <code>{hit.reason_codes.join(" · ")}</code>
         </div>
         <p>
-          <Rich>{hit.summary}</Rich>
+          <Rich>{(hit as Hit & { reason?: string }).reason || hit.summary}</Rich>
         </p>
+        {candidate && (
+          <ol className="decision-path" aria-label="Decision path">
+            {candidate.checks.map((check) => {
+              const [mark, word] = PATH_OUTCOME[check.outcome] ?? ["–", "Cannot compare"];
+              const label =
+                check.name === "dob" &&
+                candidate.customer.entity_type === "Company"
+                  ? "Incorporation date"
+                  : (PATH_LABEL[check.name] ?? check.name);
+              return (
+                <li key={check.name} className={check.outcome} title={check.detail}>
+                  <span className="mark" aria-hidden="true">
+                    {mark}
+                  </span>
+                  <small>{label}</small>
+                  <b>{word}</b>
+                </li>
+              );
+            })}
+          </ol>
+        )}
         <div className="inline">
           <span>Customer record:</span>
           {hit.customer_record_id === "AMBIGUOUS" ? (

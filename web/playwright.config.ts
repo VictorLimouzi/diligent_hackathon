@@ -8,6 +8,8 @@ export default defineConfig({
     viewport: { width: 1440, height: 1000 },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    // Entrance animations fade panels in; checks must see the settled page.
+    contextOptions: { reducedMotion: "reduce" },
   },
   webServer: {
     command: "VITE_MOCK=1 npm run dev -- --port 5174 --strictPort",

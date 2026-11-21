@@ -238,3 +238,37 @@ describe("fixture-backed analyst screens", () => {
     },
   );
 });
+
+describe("console additions", () => {
+  it("shows the benchmark with a chart, a table and the unsafe-clearance flags", async () => {
+    mount("/benchmarks");
+    await screen.findByRole("heading", { name: "How Casebook measures up" });
+    await settled();
+    const chart = screen.getByRole("region", { name: "Decision score by system" });
+    expect(within(chart).getAllByText("Casebook").length).toBeGreaterThan(0);
+    expect(within(chart).getAllByText(/none unsafe/).length).toBeGreaterThan(0);
+    const table = screen.getByRole("region", { name: "Benchmark results table" });
+    expect(table.querySelectorAll("tbody tr").length).toBeGreaterThan(1);
+    const results = await axe.run(document.body, {
+      runOnly: { type: "tag", values: ["wcag2a", "wcag2aa"] },
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(results.violations).toEqual([]);
+  });
+  it("draws the decision path of a case from its checks", async () => {
+    mount("/alerts/A-0DF328/H-ADF453");
+    const path = await screen.findByRole("list", { name: "Decision path" });
+    expect(within(path).getByText("Country")).toBeInTheDocument();
+    expect(within(path).getAllByText(/Agrees|Contradicts|Cannot compare/).length).toBeGreaterThan(3);
+  });
+  it("switches between the dark and light themes", async () => {
+    const user = userEvent.setup();
+    mount();
+    await settled();
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    await user.click(screen.getByRole("button", { name: "Use the light theme" }));
+    expect(document.documentElement.dataset.theme).toBe("light");
+    await user.click(screen.getByRole("button", { name: "Use the dark theme" }));
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+});

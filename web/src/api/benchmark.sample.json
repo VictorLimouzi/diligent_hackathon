@@ -1,0 +1,297 @@
+{
+  "available": true,
+  "labels": 50,
+  "hits": 819,
+  "all_review_cost": 108,
+  "cost_matrix": {
+    "DIFFERENT_ENTITY": {
+      "SAME_ENTITY": 3,
+      "REVIEW": 3
+    },
+    "SAME_ENTITY": {
+      "DIFFERENT_ENTITY": 60,
+      "REVIEW": 2
+    },
+    "REVIEW": {
+      "DIFFERENT_ENTITY": 60,
+      "SAME_ENTITY": 2
+    }
+  },
+  "systems": [
+    {
+      "id": "casebook",
+      "name": "Casebook",
+      "group": "casebook",
+      "note": "The rule engine as submitted, run on the full data folder.",
+      "right": 50,
+      "unsafe": 0,
+      "false_confirms": 0,
+      "unneeded_reviews": 0,
+      "cost": 0,
+      "score": 100.0,
+      "decisions": {
+        "DIFFERENT_ENTITY": 464,
+        "SAME_ENTITY": 125,
+        "REVIEW": 230
+      },
+      "review_rate": 0.281,
+      "changed_vs_casebook": 0,
+      "seconds": 11.9
+    },
+    {
+      "id": "review_everything",
+      "name": "Send everything to review",
+      "group": "baseline",
+      "note": "Answers REVIEW for every hit: never unsafe, but resolves nothing.",
+      "right": 10,
+      "unsafe": 0,
+      "false_confirms": 0,
+      "unneeded_reviews": 40,
+      "cost": 108,
+      "score": 0.0,
+      "decisions": {
+        "DIFFERENT_ENTITY": 0,
+        "SAME_ENTITY": 0,
+        "REVIEW": 819
+      },
+      "review_rate": 1.0,
+      "changed_vs_casebook": 589,
+      "seconds": null
+    },
+    {
+      "id": "clear_everything",
+      "name": "Clear everything",
+      "group": "baseline",
+      "note": "Answers DIFFERENT_ENTITY for every hit: no analyst work, and every real match is cleared.",
+      "right": 28,
+      "unsafe": 22,
+      "false_confirms": 0,
+      "unneeded_reviews": 0,
+      "cost": 1320,
+      "score": 0.0,
+      "decisions": {
+        "DIFFERENT_ENTITY": 819,
+        "SAME_ENTITY": 0,
+        "REVIEW": 0
+      },
+      "review_rate": 0.0,
+      "changed_vs_casebook": 355,
+      "seconds": null
+    },
+    {
+      "id": "match_score",
+      "name": "Screening match score only",
+      "group": "baseline",
+      "note": "Clears a hit when the screening tool's own match score is below 93 and sends the rest to review. The threshold 93 was chosen on the 50 labels themselves, so this row flatters this baseline.",
+      "right": 18,
+      "unsafe": 0,
+      "false_confirms": 0,
+      "unneeded_reviews": 32,
+      "cost": 84,
+      "score": 22.2,
+      "decisions": {
+        "DIFFERENT_ENTITY": 157,
+        "SAME_ENTITY": 0,
+        "REVIEW": 662
+      },
+      "review_rate": 0.808,
+      "changed_vs_casebook": 514,
+      "seconds": null
+    },
+    {
+      "id": "llm_second_opinion",
+      "name": "Language model second opinion",
+      "group": "baseline",
+      "note": "Claude Haiku 5.5 given the policy and the same gathered facts.",
+      "right": 49,
+      "unsafe": 0,
+      "false_confirms": 0,
+      "unneeded_reviews": 1,
+      "cost": 3,
+      "score": 97.2,
+      "decisions": {
+        "DIFFERENT_ENTITY": 450,
+        "SAME_ENTITY": 121,
+        "REVIEW": 248
+      },
+      "review_rate": 0.303,
+      "changed_vs_casebook": 23,
+      "seconds": null
+    },
+    {
+      "id": "no_notes",
+      "name": "Casebook without onboarding and support notes",
+      "group": "ablation",
+      "note": "Casebook run with the notes file emptied, so nothing a customer wrote or told staff is read.",
+      "right": 42,
+      "unsafe": 5,
+      "false_confirms": 0,
+      "unneeded_reviews": 3,
+      "cost": 309,
+      "score": 0.0,
+      "decisions": {
+        "DIFFERENT_ENTITY": 476,
+        "SAME_ENTITY": 121,
+        "REVIEW": 222
+      },
+      "review_rate": 0.271,
+      "changed_vs_casebook": 101,
+      "seconds": 9.5
+    },
+    {
+      "id": "no_kyc_checks",
+      "name": "Casebook without identity-document checks",
+      "group": "ablation",
+      "note": "Casebook run with the identity-check file emptied, so no verified name, date of birth or document is read.",
+      "right": 46,
+      "unsafe": 0,
+      "false_confirms": 1,
+      "unneeded_reviews": 3,
+      "cost": 12,
+      "score": 88.9,
+      "decisions": {
+        "DIFFERENT_ENTITY": 404,
+        "SAME_ENTITY": 135,
+        "REVIEW": 280
+      },
+      "review_rate": 0.342,
+      "changed_vs_casebook": 76,
+      "seconds": 8.9
+    },
+    {
+      "id": "no_notes_no_checks",
+      "name": "Casebook on declared details only",
+      "group": "ablation",
+      "note": "Casebook run with both the notes and the identity checks emptied, leaving only what the customer declared.",
+      "right": 38,
+      "unsafe": 5,
+      "false_confirms": 1,
+      "unneeded_reviews": 6,
+      "cost": 321,
+      "score": 0.0,
+      "decisions": {
+        "DIFFERENT_ENTITY": 416,
+        "SAME_ENTITY": 133,
+        "REVIEW": 270
+      },
+      "review_rate": 0.33,
+      "changed_vs_casebook": 179,
+      "seconds": 8.5
+    },
+    {
+      "id": "no_search_results",
+      "name": "Casebook without web search results",
+      "group": "ablation",
+      "note": "Casebook run with the search-results file emptied, so nothing is known about the listed person beyond the hit itself.",
+      "right": 46,
+      "unsafe": 0,
+      "false_confirms": 0,
+      "unneeded_reviews": 4,
+      "cost": 9,
+      "score": 91.7,
+      "decisions": {
+        "DIFFERENT_ENTITY": 443,
+        "SAME_ENTITY": 102,
+        "REVIEW": 274
+      },
+      "review_rate": 0.335,
+      "changed_vs_casebook": 44,
+      "seconds": 8.8
+    },
+    {
+      "id": "no_alert_links",
+      "name": "Casebook without the alert's account, login and email",
+      "group": "ablation",
+      "note": "Casebook run with each alert's account reference, login handle and email removed, so the customer must be found from the screened details alone.",
+      "right": 38,
+      "unsafe": 0,
+      "false_confirms": 0,
+      "unneeded_reviews": 12,
+      "cost": 32,
+      "score": 70.4,
+      "decisions": {
+        "DIFFERENT_ENTITY": 371,
+        "SAME_ENTITY": 72,
+        "REVIEW": 376
+      },
+      "review_rate": 0.459,
+      "changed_vs_casebook": 146,
+      "seconds": 208.0
+    },
+    {
+      "id": "no_customer_records",
+      "name": "Casebook on screened details only",
+      "group": "ablation",
+      "note": "Casebook run with the customer, account, onboarding, identity-check and notes files emptied, leaving only the details on the alert.",
+      "right": 20,
+      "unsafe": 0,
+      "false_confirms": 1,
+      "unneeded_reviews": 29,
+      "cost": 85,
+      "score": 21.3,
+      "decisions": {
+        "DIFFERENT_ENTITY": 68,
+        "SAME_ENTITY": 101,
+        "REVIEW": 650
+      },
+      "review_rate": 0.794,
+      "changed_vs_casebook": 464,
+      "seconds": 1.7
+    },
+    {
+      "id": "no_name_variants",
+      "name": "Casebook without the name-variant list",
+      "group": "ablation",
+      "note": "Casebook run with the list of name spellings that count as the same name emptied; the company legal forms are kept.",
+      "right": 50,
+      "unsafe": 0,
+      "false_confirms": 0,
+      "unneeded_reviews": 0,
+      "cost": 0,
+      "score": 100.0,
+      "decisions": {
+        "DIFFERENT_ENTITY": 456,
+        "SAME_ENTITY": 124,
+        "REVIEW": 239
+      },
+      "review_rate": 0.292,
+      "changed_vs_casebook": 13,
+      "seconds": 76.9
+    }
+  ],
+  "operations": {
+    "seconds": 12.8,
+    "runs": 5,
+    "runs_identical": 5,
+    "matches_committed_output": true,
+    "python": [
+      {
+        "version": "3.9.6",
+        "identical": true
+      },
+      {
+        "version": "3.11.6",
+        "identical": true
+      },
+      {
+        "version": "3.12.11",
+        "identical": true
+      },
+      {
+        "version": "3.13.6",
+        "identical": true
+      }
+    ],
+    "robustness": {
+      "experiments": 35,
+      "with_changes": 1,
+      "with_new_clears": 0
+    },
+    "wording": {
+      "rounds": 3,
+      "sentences": 3765,
+      "unread": 100,
+      "wrong": 0
+    }
+  }
+}

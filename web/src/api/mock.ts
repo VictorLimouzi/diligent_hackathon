@@ -17,6 +17,7 @@ import note from "./fixtures/note.json";
 import auditData from "./fixtures/audit.json";
 import investigateEvents from "./fixtures/investigate_events.json";
 import chatEvents from "./fixtures/chat_events.json";
+import benchmarkSample from "./benchmark.sample.json";
 
 const details = detailsData as unknown as Record<string, AlertDetail>;
 const records = recordsData as Record<string, SourceRecord>;
@@ -47,6 +48,7 @@ export async function mockRequest<T>(
     value = records[decodeURIComponent(p.slice(9))];
   else if (p === "/summary") value = summary;
   else if (p === "/qa") value = qa;
+  else if (p === "/benchmark") value = benchmarkSample;
   else if (p === "/queue/summary") value = queueSummary;
   else if (p === "/search/customers") {
     const q = (url.searchParams.get("q") || "")
