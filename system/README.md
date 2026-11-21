@@ -166,13 +166,43 @@ We tested this in four ways.
 
 ## Model, prompts, time and cost
 
-No model and no prompts. A run on the development set takes about 5 seconds on a laptop and costs nothing.
+No model and no prompts. A run on the development set takes about 6 seconds on a laptop and costs nothing.
 
 We chose this because the SOP is precise enough to implement exactly, the worst mistake (clearing a true match) is one a deterministic rule can rule out, and the notes and search snippets, though paraphrased, carry a small fixed set of facts that patterns read reliably. On the development set the patterns read all but 4 of 22,575 identity-check notes and all but 5 of 16,882 search snippets; each miss costs at most a `REVIEW`.
 
 ## Results on the practice labels
 
 `validate.py --score` reports 819 lines, 0 problems, 50 of 50 right decisions, no unsafe clearances and a decision score of 100. On every label the reason code is among the accepted codes, the customer record is an accepted record, and the evidence IDs equal the label's.
+
+## Benchmark
+
+`make benchmark` (`evals/benchmark.py`) scores other ways of deciding the same hits with the same cost matrix, on the same 50 labels. The "Casebook without" rows run the real engine on the folder with one file emptied; the engine has no switches.
+
+| System | Right of 50 | Unsafe clearances | Decision score |
+|---|---:|---:|---:|
+| **Casebook** | **50** | **0** | **100.0** |
+| Send everything to review | 10 | 0 | 0.0 |
+| Clear everything | 28 | 22 | 0.0 |
+| Screening match score only (best threshold, chosen on these labels) | 18 | 0 | 22.2 |
+| Language model second opinion (Claude Haiku 5.5, given the facts Casebook gathered) | 49 | 0 | 97.2 |
+| Casebook without onboarding and support notes | 42 | 5 | 0.0 |
+| Casebook without provider identity checks | 46 | 0 | 88.9 |
+| Casebook on declared details only (neither of the two) | 38 | 5 | 0.0 |
+| Casebook without web search results | 46 | 0 | 91.7 |
+| Casebook without the alert's account, login and email | 38 | 0 | 70.4 |
+| Casebook on screened details only (no customer records) | 20 | 0 | 21.3 |
+| Casebook without the name-variant list | 50 | 0 | 100.0 |
+
+What it shows:
+
+- **The notes are where a wrong clear is prevented.** Without them the engine clears five hits it should not, and one unsafe clearance costs more than twenty reviews, so the score falls to 0. Some customer records carry a wrong date of birth or miss a country; the verified date and the places lived are only in the notes.
+- **Every source earns its place.** Identity checks, search results and the alert's link each remove reviews that are otherwise needed; none of them is needed for safety.
+- **A language model gets close, and is not the same thing.** Given the facts Casebook gathered, it makes one decision differently on the labels and 23 over all 819 hits, and nothing guarantees that it gives the same answer twice.
+- **The name-variant list makes no difference on these labels.** It changes 13 of the 819 decisions.
+
+Operations, measured by the same script: 6.5 seconds for 819 hits; five runs byte-identical and equal to the committed output; the same output on Python 3.9, 3.11, 3.12 and 3.13. Of 35 ways of rewriting the data without changing its meaning, 34 add no clear; the exception swaps a name for a listed variant of it and is the literal name rule described above. Of 3,765 newly worded sentences, none is read wrongly.
+
+Read it with care: 50 labelled cases is a small sample, and the match-score threshold was chosen on those same cases.
 
 ## Three cases
 

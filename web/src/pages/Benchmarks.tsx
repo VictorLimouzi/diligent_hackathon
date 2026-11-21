@@ -63,7 +63,13 @@ function Unsafe({ n }: { n: number }) {
   );
 }
 
-function ScoreChart({ systems, labels }: { systems: System[]; labels: number }) {
+function ScoreChart({
+  systems,
+  labels,
+}: {
+  systems: System[];
+  labels: number;
+}) {
   return (
     <figure style={{ margin: 0 }}>
       <div className="bars">
@@ -111,8 +117,8 @@ function ScoreChart({ systems, labels }: { systems: System[]; labels: number }) 
       <figcaption className="footnote">
         Decision score: the share of cost saved compared with sending every hit
         to review, on the {labels} practice labels. An unsafe clearance costs
-        60; an unneeded review costs 2 or 3. A system that clears one true
-        match can score 0 however many others it gets right.
+        60; an unneeded review costs 2 or 3. A system that clears one true match
+        can score 0 however many others it gets right.
       </figcaption>
     </figure>
   );
@@ -152,10 +158,7 @@ export function Benchmarks() {
                 {casebook.right} of {data.labels} practice decisions right
               </span>
             </section>
-            <section
-              className="panel stat-tile"
-              aria-label="Unsafe clearances"
-            >
+            <section className="panel stat-tile" aria-label="Unsafe clearances">
               <small>Unsafe clearances</small>
               <b className="big">{casebook.unsafe}</b>
               <span className="sub">true matches or open cases cleared</span>
@@ -241,21 +244,22 @@ export function Benchmarks() {
                 <b className="big">{ops.wording.wrong}</b>
                 <span className="sub">
                   of {ops.wording.sentences.toLocaleString()} generated
-                  sentences in {ops.wording.rounds} rounds;{" "}
-                  {ops.wording.unread} left unread, which only costs a review
+                  sentences in {ops.wording.rounds} rounds; {ops.wording.unread}{" "}
+                  left unread, which only costs a review
                 </span>
               </section>
             )}
             {ops.robustness && (
-              <section
-                className="panel stat-tile"
-                aria-label="Rewritten data"
-              >
-                <small>Rewrites that add a clear</small>
-                <b className="big">{ops.robustness.with_new_clears}</b>
+              <section className="panel stat-tile" aria-label="Rewritten data">
+                <small>Rewrites that add no clear</small>
+                <b className="big">
+                  {ops.robustness.experiments - ops.robustness.with_new_clears}/
+                  {ops.robustness.experiments}
+                </b>
                 <span className="sub">
-                  of {ops.robustness.experiments} ways of rewriting the data
-                  without changing its meaning
+                  ways of rewriting the data without changing its meaning
+                  {ops.robustness.with_new_clears > 0 &&
+                    ". The exception swaps a name for a listed variant of it: Casebook applies the name rule literally, as the practice labels do"}
                 </span>
               </section>
             )}
@@ -279,11 +283,11 @@ export function Benchmarks() {
           </div>
 
           <p className="footnote">
-            Read this with care: {data.labels} labelled cases is a small
-            sample. The match-score row uses a threshold chosen on these same
-            labels, which flatters it. The second-opinion row was given the
-            facts Casebook gathered, so it measures judgement on those facts,
-            not a separate system.
+            Read this with care: {data.labels} labelled cases is a small sample.
+            The match-score row uses a threshold chosen on these same labels,
+            which flatters it. The second-opinion row was given the facts
+            Casebook gathered, so it measures judgement on those facts, not a
+            separate system.
           </p>
         </>
       )}

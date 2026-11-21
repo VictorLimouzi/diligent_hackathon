@@ -19,7 +19,22 @@ python3 data/screening/validate.py --data <data folder> --output <output file> -
 
 [`system/README.md`](system/README.md) explains the architecture, how the customer and the listed person are found, how evidence is represented, why results are identical from run to run, and three worked cases.
 
-On the development set: 819 lines, 0 problems, 50 of 50 practice decisions right, no unsafe clearances, decision score 100. A run takes about five seconds.
+On the development set: 819 lines, 0 problems, 50 of 50 practice decisions right, no unsafe clearances, decision score 100. A run takes about six seconds.
+
+### Benchmark
+
+`make benchmark` scores other ways of deciding the same hits, with the organisers' cost matrix on the 50 practice labels. The full table and what it shows are in [`system/README.md`](system/README.md#benchmark).
+
+| System | Right of 50 | Unsafe clearances | Decision score |
+|---|---:|---:|---:|
+| **Casebook** | **50** | **0** | **100.0** |
+| Language model second opinion (given the same facts) | 49 | 0 | 97.2 |
+| Screening match score only (best threshold) | 18 | 0 | 22.2 |
+| Send everything to review | 10 | 0 | 0.0 |
+| Clear everything | 28 | 22 | 0.0 |
+| Casebook without onboarding and support notes | 42 | 5 | 0.0 |
+| Casebook without web search results | 46 | 0 | 91.7 |
+| Casebook without the alert's account, login and email | 38 | 0 | 70.4 |
 
 ## The analyst app
 
@@ -42,6 +57,7 @@ Needs Python 3.10+, Node 24+, and the development data in `data/screening/dev` (
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 make ml                 # train the advisory models         -> out/ml/
+make benchmark          # Casebook against alternatives (optional) -> out/benchmark.json
 make second-opinion     # LLM second opinions (optional)    -> out/llm/
 make web                # build the frontend                -> web/dist/
 make serve              # http://localhost:8000
@@ -55,7 +71,11 @@ Put `ANTHROPIC_API_KEY=...` in `.env` for live LLM output. Without it every LLM 
 2. **One case.** Open alert `A-0DF328` and its hit `H-ADF453`. The comparison table sets the customer's verified facts against the hit's, each with the record it came from; click a record ID to see the source. "What would settle it" shows that one fact (a tie to the hit's country) turns this review into a confirmation.
 3. **Investigate.** Start the investigator. The agent looks through the customer's own records with read-only tools, shows each step, and drafts the question to send the customer. It cannot change the decision.
 4. **Decide.** Record an analyst decision with a comment. It is stored in the audit history and marked as an override when it differs; the engine's decision is kept and shown beside it.
-5. **QA.** The QA page lists the hits where the second opinion disagrees with the engine, name clears that the name model scores as close, and unusual cases. This is how the date fault described in [`system/README.md`](system/README.md) was found.
+5. **Quality assurance.** The QA page lists the hits where the second opinion disagrees with the engine, name clears that the name model scores as close, and unusual cases. This is how the date fault described in [`system/README.md`](system/README.md) was found.
+
+6. **Benchmarks.** The Benchmarks page charts the table above: Casebook against simple alternatives and against itself with one source of evidence removed.
+
+The app is dark by default; the button at the top right switches to a light theme.
 
 ### Tests
 

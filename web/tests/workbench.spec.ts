@@ -18,9 +18,12 @@ test("queue filters, blockers and keyboard navigation preserve server order", as
   await page.getByLabel(/^Status/).selectOption("cleared");
   await expect(rows).toHaveCount(2);
   await page.getByLabel(/^Status/).selectOption("");
-  await page.getByLabel("Practice labelled").check();
+  await page.getByLabel("Practice labelled").click();
+  await expect(page.getByLabel("Practice labelled")).toBeChecked();
   await expect(rows).toHaveCount(4);
-  await page.getByLabel("Practice labelled").uncheck();
+  // The filter lives in the URL, so the box re-renders a moment after the click.
+  await page.getByLabel("Practice labelled").click();
+  await expect(page.getByLabel("Practice labelled")).not.toBeChecked();
   await page.getByText("What is keeping the queue open?").click();
   await page
     .getByRole("button", {
@@ -165,10 +168,10 @@ test("QA matrix and every available case row navigate to the correct hit", async
   ).toHaveCount(6);
   await page.screenshot({ path: "test-results/qa-light.png", fullPage: true });
   await page
-    .getByRole("link", { name: "Marcus Miller →", exact: true })
+    .getByRole("link", { name: "Raković, Aleksandar →", exact: true })
     .first()
     .click();
-  await expect(page).toHaveURL(/A-0DF328\/H-ADF453$/);
+  await expect(page).toHaveURL(/A-AE9222\/H-622EDD$/);
 });
 
 test("command palette keyboard shortcut searches customers and alerts", async ({
@@ -189,7 +192,12 @@ test("command palette keyboard shortcut searches customers and alerts", async ({
 test("light, dark and narrow layouts are accessible and keep tables contained", async ({
   page,
 }) => {
-  for (const route of ["/", "/alerts/A-0DF328/H-ADF453", "/qa"]) {
+  for (const route of [
+    "/",
+    "/alerts/A-0DF328/H-ADF453",
+    "/qa",
+    "/benchmarks",
+  ]) {
     await page.goto(route);
     await expect(page.locator(".loading")).toHaveCount(0);
     const results = await new AxeBuilder({ page })
@@ -197,7 +205,16 @@ test("light, dark and narrow layouts are accessible and keep tables contained", 
       .analyze();
     expect(results.violations).toEqual([]);
   }
-  await page.emulateMedia({ colorScheme: "dark" });
+  // The app is dark unless the user chose light, so the pass above was the dark theme.
+  await page.evaluate(() => localStorage.setItem("casebook-theme", "light"));
+  for (const route of ["/", "/qa", "/benchmarks"]) {
+    await page.goto(route);
+    await expect(page.locator(".loading")).toHaveCount(0);
+    expect(
+      (await new AxeBuilder({ page }).withTags(["wcag2aa"]).analyze())
+        .violations,
+    ).toEqual([]);
+  }
   await page.goto("/alerts/A-0DF328/H-ADF453");
   await expect(page.locator(".loading")).toHaveCount(0);
   expect(

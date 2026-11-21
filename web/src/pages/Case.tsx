@@ -154,19 +154,28 @@ function HitCase({ hit, screenedAt }: { hit: Hit; screenedAt: string }) {
           <code>{hit.reason_codes.join(" · ")}</code>
         </div>
         <p>
-          <Rich>{(hit as Hit & { reason?: string }).reason || hit.summary}</Rich>
+          <Rich>
+            {(hit as Hit & { reason?: string }).reason || hit.summary}
+          </Rich>
         </p>
         {candidate && (
           <ol className="decision-path" aria-label="Decision path">
             {candidate.checks.map((check) => {
-              const [mark, word] = PATH_OUTCOME[check.outcome] ?? ["–", "Cannot compare"];
+              const [mark, word] = PATH_OUTCOME[check.outcome] ?? [
+                "–",
+                "Cannot compare",
+              ];
               const label =
                 check.name === "dob" &&
                 candidate.customer.entity_type === "Company"
                   ? "Incorporation date"
                   : (PATH_LABEL[check.name] ?? check.name);
               return (
-                <li key={check.name} className={check.outcome} title={check.detail}>
+                <li
+                  key={check.name}
+                  className={check.outcome}
+                  title={check.detail}
+                >
                   <span className="mark" aria-hidden="true">
                     {mark}
                   </span>

@@ -2,7 +2,7 @@
 DATA ?= data/screening/dev
 PY   ?= .venv/bin/python
 
-.PHONY: decisions eval test ml second-opinion web serve all
+.PHONY: decisions eval test ml second-opinion benchmark web serve all
 
 decisions:        ## the scored output (standard library only)
 	system/run $(DATA) output/dev.jsonl
@@ -21,6 +21,9 @@ ml:               ## train the advisory models, write out/ml/
 
 second-opinion:   ## LLM second opinion on every hit, write out/llm/ (needs ANTHROPIC_API_KEY for live output)
 	$(PY) -m agents.second_opinion $(DATA) --out out/llm/second_opinion.json
+
+benchmark:        ## Casebook against baselines and against itself with one source removed, write out/benchmark.json
+	python3 -m evals.benchmark $(DATA) --out out/benchmark.json
 
 web:              ## build the frontend into web/dist
 	cd web && npm install && npm run build

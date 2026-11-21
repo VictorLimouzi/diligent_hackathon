@@ -175,6 +175,18 @@ def audit(hit_id: Optional[str] = None):
     return get_state().audit(hit_id=hit_id)
 
 
+@app.get("/api/benchmark")
+def benchmark():
+    """The numbers written by `make benchmark` (evals/benchmark.py), when they exist."""
+    from server.state import OUT
+    try:
+        with open(os.path.join(OUT, "benchmark.json"), encoding="utf-8") as f:
+            result = json.load(f)
+    except (OSError, ValueError):
+        return {"available": False}
+    return result if isinstance(result, dict) else {"available": False}
+
+
 @app.post("/api/admin/reload-advisory")
 def reload_advisory():
     s = get_state()

@@ -113,6 +113,12 @@ def test_review_is_logged_and_never_changes_the_engine_decision(client):
     assert client.post("/api/hits/H-ADF453/review", json={"decision": "CLEAR", "reason_code": "X"}).status_code == 422
 
 
+def test_benchmark_answers_even_without_a_file(client):
+    r = client.get("/api/benchmark")
+    assert r.status_code == 200
+    assert "available" in r.json()
+
+
 def test_qa(client):
     qa = client.get("/api/qa").json()
     assert qa["label_metrics"]["n"] == len(qa["labels"]) == 50

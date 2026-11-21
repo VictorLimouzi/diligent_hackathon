@@ -91,9 +91,7 @@ function SummaryStrip() {
                 ML models {data.ml.trained ? "connected" : "not connected"}
               </span>
               <span
-                className={
-                  data.llm.live && !data.llm.stub ? "conn on" : "conn"
-                }
+                className={data.llm.live && !data.llm.stub ? "conn on" : "conn"}
               >
                 LLM{" "}
                 {data.llm.live && !data.llm.stub

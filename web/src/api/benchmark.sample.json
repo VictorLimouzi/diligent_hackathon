@@ -36,7 +36,7 @@
       },
       "review_rate": 0.281,
       "changed_vs_casebook": 0,
-      "seconds": 11.9
+      "seconds": 6.5
     },
     {
       "id": "review_everything",
@@ -136,7 +136,7 @@
       },
       "review_rate": 0.271,
       "changed_vs_casebook": 101,
-      "seconds": 9.5
+      "seconds": 6.3
     },
     {
       "id": "no_kyc_checks",
@@ -156,7 +156,7 @@
       },
       "review_rate": 0.342,
       "changed_vs_casebook": 76,
-      "seconds": 8.9
+      "seconds": 5.9
     },
     {
       "id": "no_notes_no_checks",
@@ -176,7 +176,7 @@
       },
       "review_rate": 0.33,
       "changed_vs_casebook": 179,
-      "seconds": 8.5
+      "seconds": 5.3
     },
     {
       "id": "no_search_results",
@@ -196,13 +196,13 @@
       },
       "review_rate": 0.335,
       "changed_vs_casebook": 44,
-      "seconds": 8.8
+      "seconds": 5.7
     },
     {
       "id": "no_alert_links",
       "name": "Casebook without the alert's account, login and email",
       "group": "ablation",
-      "note": "Casebook run with each alert's account reference, login handle and email removed, so the customer must be found from the screened details alone.",
+      "note": "Casebook run with each alert's account reference, login handle and email removed, so the customer must be found from the screened details alone. This run took several times as long as Casebook on the full folder.",
       "right": 38,
       "unsafe": 0,
       "false_confirms": 0,
@@ -216,7 +216,7 @@
       },
       "review_rate": 0.459,
       "changed_vs_casebook": 146,
-      "seconds": 208.0
+      "seconds": 100.4
     },
     {
       "id": "no_customer_records",
@@ -236,7 +236,7 @@
       },
       "review_rate": 0.794,
       "changed_vs_casebook": 464,
-      "seconds": 1.7
+      "seconds": 0.9
     },
     {
       "id": "no_name_variants",
@@ -256,11 +256,11 @@
       },
       "review_rate": 0.292,
       "changed_vs_casebook": 13,
-      "seconds": 76.9
+      "seconds": 6.5
     }
   ],
   "operations": {
-    "seconds": 12.8,
+    "seconds": 6.5,
     "runs": 5,
     "runs_identical": 5,
     "matches_committed_output": true,
@@ -284,8 +284,8 @@
     ],
     "robustness": {
       "experiments": 35,
-      "with_changes": 1,
-      "with_new_clears": 0
+      "with_changes": 2,
+      "with_new_clears": 1
     },
     "wording": {
       "rounds": 3,
